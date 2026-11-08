@@ -4,11 +4,23 @@ import Home from "../src/pages/Home/Home.jsx";
 import Map from "../src/pages/Map/Map.jsx";
 import Activities from "../src/pages/Activities/Activities.jsx";
 import MyPage from "../src/pages/MyPage/MyPage.jsx";
+import Search from "../src/pages/Search/Search.jsx";
+import ShelterDetail from "../src/pages/Shelters/ShelterDetail.jsx";
+import VolunteerDetail from "../src/pages/Shelters/VolunteerDetail.jsx";
+import Apply from "../src/pages/Volunteer/Apply.jsx";
+import Complete from "../src/pages/Volunteer/Complete.jsx";
+import ActivityDetail from "../src/pages/Activities/ActivityDetail.jsx";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/search" element={<Search />} />
+        <Route path="/shelters/volunteer/:postId" element={<VolunteerDetail />} />
+        <Route path="/shelters/:shelterId" element={<ShelterDetail />} />
+        <Route path="/volunteer/apply/:postId" element={<Apply />} />
+        <Route path="/volunteer/complete" element={<Complete />} />
+        <Route path="/activities/:activityId" element={<ActivityDetail />} />
         <Route element={<RootLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/map" element={<Map />} />

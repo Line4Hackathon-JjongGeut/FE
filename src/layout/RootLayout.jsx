@@ -1,14 +1,18 @@
+import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import styled from "styled-components";
 import BottomNav from "../components/common/BottomNav.jsx";
 
 export default function RootLayout() {
+  const [hideNav, setHideNav] = useState(false);
+
   return (
     <Shell>
       <Main>
-        <Outlet />
+        <Outlet context={{ setHideNav }} />
       </Main>
-      <BottomNav />
+      {/* 지도 바텀시트가 올라온 동안만 하단 메뉴를 숨깁니다. */}
+      {!hideNav && <BottomNav />}
     </Shell>
   );
 }
