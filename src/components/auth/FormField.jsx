@@ -1,7 +1,13 @@
 import styled from "styled-components";
 
-/* 라벨 + 입력 줄 + 안내 문구 묶음.. */
-export default function FormField({ label, required = false, hint, children }) {
+const HINT_COLORS = {
+  default: "#7a7a7a",
+  success: "#4f7a5f",
+  error: "#d9534f",
+};
+
+/* 라벨 + 입력 줄 + 안내 문구 묶음  */
+export default function FormField({ label, required = false, hint, hintTone = "default", children }) {
   return (
     <Field>
       <Label>
@@ -9,7 +15,7 @@ export default function FormField({ label, required = false, hint, children }) {
         {required && <Required>*</Required>}
       </Label>
       <Row>{children}</Row>
-      {hint && <Hint>{hint}</Hint>}
+      {hint && <Hint $tone={hintTone}>{hint}</Hint>}
     </Field>
   );
 }
@@ -37,7 +43,7 @@ const Row = styled.div`
 
 const Hint = styled.p`
   margin-top: 7px;
-  color: #7a7a7a;
+  color: ${({ $tone }) => HINT_COLORS[$tone]};
   font-size: 11px;
   font-weight: 600;
 `;
