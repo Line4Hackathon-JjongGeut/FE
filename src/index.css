@@ -1,5 +1,12 @@
-/* Noto Sans KR 폰트 불러오기 */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100;200;300;400;500;600;700;900&display=swap');
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css");
+
+/* 소개 화면 제목용 KCC간판체 (눈누) */
+@font-face {
+  font-family: 'KCC-Ganpan';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/KCC-Ganpan.woff2') format('woff2');
+  font-weight: normal;
+  font-display: swap;
+}
 
 /* 기존 전역 스타일 유지 */
 * {
@@ -23,7 +30,7 @@ html {
 body {
   background-color: #f3f4f6;
   color: #111111;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: "Pretendard Variable", Pretendard, sans-serif;
 
   /* 모바일 화면을 가운데 정렬 */
   display: flex;

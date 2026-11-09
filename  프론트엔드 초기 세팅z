@@ -1,0 +1,34 @@
+ .env.example                        |    1 [32m+[m
+ .github/ISSUE_TEMPLATE/.gitkeep     |    0
+ .gitignore                          |   27 [32m+[m
+ README.md                           |   17 [32m+[m[31m-[m
+ eslint.config.js                    |   21 [32m+[m
+ index.html                          |   13 [32m+[m
+ package-lock.json                   | 2638 [32m+++++++++++++++++++++++++++++++++++[m
+ package.json                        |   31 [32m+[m
+ public/favicon.svg                  |    1 [32m+[m
+ public/icons.svg                    |   24 [32m+[m
+ src/App.css                         |  184 [32m+++[m
+ src/App.jsx                         |   17 [32m+[m
+ src/api/.gitkeep                    |    0
+ src/assets/icons/.gitkeep           |    0
+ src/assets/images/.gitkeep          |    0
+ src/components/common/BottomNav.jsx |    0
+ src/hooks/.gitkeep                  |    0
+ src/index.css                       |    9 [32m+[m
+ src/layout/RootLayout.jsx           |   11 [32m+[m
+ src/main.jsx                        |   10 [32m+[m
+ src/mocks/.gitkeep                  |    0
+ src/pages/Activities/.gitkeep       |    0
+ src/pages/Auth/.gitkeep             |    0
+ src/pages/Home/.gitkeep             |    0
+ src/pages/Home/Home.jsx             |    7 [32m+[m
+ src/pages/Map/.gitkeep              |    0
+ src/pages/MyPage/.gitkeep           |    0
+ src/pages/Onboarding/.gitkeep       |    0
+ src/pages/Shelters/.gitkeep         |    0
+ src/pages/Volunteer/.gitkeep        |    0
+ src/router/.gitkeep                 |    0
+ src/utils/.gitkeep                  |    0
+ vite.config.js                      |    7 [32m+[m
+ 33 files changed, 3017 insertions(+), 1 deletion(-)
