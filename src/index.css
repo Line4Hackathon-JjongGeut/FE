@@ -1,9 +1,59 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css");
+
+/* 소개 화면 제목용 KCC간판체 (눈누) */
+@font-face {
+  font-family: 'KCC-Ganpan';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/KCC-Ganpan.woff2') format('woff2');
+  font-weight: normal;
+  font-display: swap;
+}
+
+/* 기존 전역 스타일 유지 */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+/* 전체 화면 설정 */
+html,
 body {
-  background-color: #fff;
+  width: 100%;
+  min-height: 100dvh;
+}
+
+/* 모바일 화면 바깥 배경 */
+html {
+  background-color: #ebf3ff;
+}
+
+body {
+  background-color: #f3f4f6;
+  color: #111111;
+  font-family: "Pretendard Variable", Pretendard, sans-serif;
+
+  /* 모바일 화면을 가운데 정렬 */
+  display: flex;
+  justify-content: center;
+}
+
+/* 실제 앱 화면 */
+#root {
+  width: 100%;
+  max-width: 390px;
+  min-height: 100dvh;
+  background-color: #ffffff;
+}
+
+/* 입력 요소의 글꼴 통일 */
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+/* 링크 기본 스타일 제거 */
+a {
+  color: inherit;
+  text-decoration: none;
 }
