@@ -15,6 +15,13 @@ import Login from "../src/pages/Auth/Login.jsx";
 import SignupType from "../src/pages/Auth/SignupType.jsx";
 import SignupForm from "../src/pages/Auth/SignupForm.jsx";
 import SignupComplete from "../src/pages/Auth/SignupComplete.jsx";
+import AnimalSelect from "../src/pages/Onboarding/AnimalSelect.jsx";
+import RegionSelect from "../src/pages/Onboarding/RegionSelect.jsx";
+import RegionMap from "../src/pages/Onboarding/RegionMap.jsx";
+import ScheduleSelect from "../src/pages/Onboarding/ScheduleSelect.jsx";
+import ActivitySelect from "../src/pages/Onboarding/ActivitySelect.jsx";
+import ExperienceForm from "../src/pages/Onboarding/ExperienceForm.jsx";
+import OnboardingComplete from "../src/pages/Onboarding/OnboardingComplete.jsx";
 
 function App() {
   return (
@@ -34,6 +41,13 @@ function App() {
         <Route path="/signup" element={<SignupType />} />
         <Route path="/signup/form" element={<SignupForm />} />
         <Route path="/signup/complete" element={<SignupComplete />} />
+        <Route path="/onboarding" element={<AnimalSelect />} />
+        <Route path="/onboarding/region" element={<RegionSelect />} />
+        <Route path="/onboarding/region/map" element={<RegionMap />} />
+        <Route path="/onboarding/schedule" element={<ScheduleSelect />} />
+        <Route path="/onboarding/activity" element={<ActivitySelect />} />
+        <Route path="/onboarding/experience" element={<ExperienceForm />} />
+        <Route path="/onboarding/complete" element={<OnboardingComplete />} />
         <Route element={<RootLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/map" element={<Map />} />
