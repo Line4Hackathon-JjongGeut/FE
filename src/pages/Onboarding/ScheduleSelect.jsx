@@ -11,6 +11,7 @@ import morningIcon from "../../assets/icons/onboarding/time-morning.svg";
 import afternoonIcon from "../../assets/icons/onboarding/time-afternoon.svg";
 import eveningIcon from "../../assets/icons/onboarding/time-evening.svg";
 import weekendIcon from "../../assets/icons/onboarding/time-weekend.svg";
+import { toggleItem } from "../../utils/toggleItem.js";
 
 const TIME_SLOTS = [
   { id: "morning", icon: morningIcon, title: "오전", time: "09:00 - 12:00" },
@@ -24,10 +25,6 @@ const FREQUENCIES = [
   { id: "biweekly", label: "월 2-3회" },
   { id: "weekly", label: "매주" },
 ];
-
-function toggleItem(list, item) {
-  return list.includes(item) ? list.filter((value) => value !== item) : [...list, item];
-}
 
 /* 활동 일정 설정 화면 */
 export default function ScheduleSelect() {
