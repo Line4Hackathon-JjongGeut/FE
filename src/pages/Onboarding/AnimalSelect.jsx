@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import OnboardingStep from "../../components/onboarding/OnboardingStep.jsx";
 import AnimalCard from "../../components/onboarding/AnimalCard.jsx";
-import { getPreferences, updatePreferences } from "../../dummyData/onboarding/preferences.js";
+import {
+  getPreferences,
+  updatePreferences,
+} from "../../dummyData/onboarding/preferences.js";
 import dogImage from "../../assets/images/onboarding/animal-dog.svg";
 import catImage from "../../assets/images/onboarding/animal-cat.svg";
 import bothImage from "../../assets/images/onboarding/animal-both.png";
@@ -11,7 +14,13 @@ import bothImage from "../../assets/images/onboarding/animal-both.png";
 const ANIMALS = [
   { id: "dog", label: "강아지", image: dogImage, imageWidth: 49 },
   { id: "cat", label: "고양이", image: catImage, imageWidth: 47 },
-  { id: "any", label: "둘 다 상관없어요", image: bothImage, imageWidth: 66 },
+  {
+    id: "any",
+    label: "둘 다 상관없어요",
+    image: bothImage,
+    imageWidth: 66,
+    imageOffsetX: -4,
+  },
 ];
 
 /* 관심 동물 선택 화면 */
@@ -39,6 +48,7 @@ export default function AnimalSelect() {
             key={item.id}
             image={item.image}
             imageWidth={item.imageWidth}
+            imageOffsetX={item.imageOffsetX}
             label={item.label}
             selected={animal === item.id}
             onClick={() => setAnimal(item.id)}

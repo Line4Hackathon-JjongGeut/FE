@@ -2,11 +2,29 @@ import styled from "styled-components";
 import checkOnIcon from "../../assets/icons/onboarding/icon-check-on.svg";
 
 /* 관심 동물 선택 카드. 선택되면 테두리,배경 원,글자 색이 바뀌고 오른쪽에 체크 표시 */
-export default function AnimalCard({ image, imageWidth, label, selected, onClick }) {
+export default function AnimalCard({
+  image,
+  imageWidth,
+  imageOffsetX = 0,
+  label,
+  selected,
+  onClick,
+}) {
   return (
-    <Card type="button" role="radio" aria-checked={selected} $selected={selected} onClick={onClick}>
+    <Card
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      $selected={selected}
+      onClick={onClick}
+    >
       <ImageCircle $selected={selected}>
-        <img src={image} alt="" width={imageWidth} />
+        <AnimalImage
+          src={image}
+          alt=""
+          width={imageWidth}
+          $offsetX={imageOffsetX}
+        />{" "}
       </ImageCircle>
       <Label $selected={selected}>{label}</Label>
       {selected ? <img src={checkOnIcon} alt="" /> : <EmptyCheck />}
@@ -37,6 +55,10 @@ const ImageCircle = styled.span`
   height: 67px;
   border-radius: 50%;
   background-color: ${({ $selected }) => ($selected ? "#f6cdc5" : "#f0e9d2")};
+`;
+
+const AnimalImage = styled.img`
+  transform: translateX(${({ $offsetX }) => $offsetX}px);
 `;
 
 const Label = styled.span`
