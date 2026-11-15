@@ -1,6 +1,8 @@
 import styled from "styled-components";
 import HomeHeader from "../../components/home/HomeHeader.jsx";
 import RecommendSection from "../../components/home/RecommendSection.jsx";
+import UrgentSection from "../../components/home/UrgentSection.jsx";
+import HelpSection from "../../components/home/HelpSection.jsx";
 
 /* 홈 화면. 인사 카드 -> 봉사 추천 -> 급한 활동 -> 다른 도움 방법 순서 */
 export default function Home() {
@@ -9,7 +11,8 @@ export default function Home() {
       <HomeHeader />
       <Sections>
         <RecommendSection />
-        {/* TODO: 도움이 급한 활동, 다른 방법으로 도와주기 */}
+        <UrgentSection />
+        <HelpSection />
       </Sections>
     </Page>
   );

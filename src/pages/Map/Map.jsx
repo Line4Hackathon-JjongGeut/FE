@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import styled from "styled-components";
 import searchIcon from "../../assets/icons/map/search.svg";
@@ -18,8 +19,8 @@ const NAV_HEIGHT = 90;
 export default function Map() {
   const navigate = useNavigate();
   const { setHideNav } = useOutletContext();
-  const [filter, setFilter] = useState(null);
-  const [expanded, setExpanded] = useState(false);
+  const location = useLocation();
+  const [filter, setFilter] = useState(location.state?.filter ?? null);  const [expanded, setExpanded] = useState(false);
   const [favorites, setFavorites] = useState(() => new Set());
   const dragStartY = useRef(null);
   const filterTimer = useRef(null);

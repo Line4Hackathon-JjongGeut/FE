@@ -56,3 +56,45 @@ export const RECOMMENDED_POSTS = [
     schedule: "11/22(일) 10:00 ~ 12:00",
   },
 ];
+
+
+/* 도움이 급한 활동 목록. 홈과 긴급 모집 화면에서 같이 사용 */
+export const URGENT_POSTS = [
+  {
+    id: 1,
+    type: "staff",
+    shelterId: "yongsan",
+    shelter: "행복한동물보호소",
+    region: "마포구",
+    title: "견사 청소 봉사",
+    current: 0,
+    total: 6,
+    needs: "보호소 청소/ 견사 정리",
+  },
+  {
+    id: 2,
+    type: "staff",
+    shelterId: "yongsan",
+    shelter: "아이조아 보호소",
+    region: "용산구",
+    title: "유기견 산책 봉사",
+    current: 1,
+    total: 6,
+    needs: "소형견 산책",
+  },
+  {
+    id: 3,
+    type: "goods",
+    shelterId: "yongsan",
+    shelter: "행복한동물보호소",
+    region: "마포구",
+    title: "사료 후원",
+    percent: 20,
+    needs: "사료/ 배변 패드",
+  },
+];
+
+export const URGENT_LABELS = {
+  staff: "인력 부족",
+  goods: "물품 부족",
+};
