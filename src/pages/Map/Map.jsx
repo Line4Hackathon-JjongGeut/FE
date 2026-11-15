@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
-import { useNavigate, useOutletContext } from "react-router-dom";
 import styled from "styled-components";
 import searchIcon from "../../assets/icons/map/search.svg";
 import checkIcon from "../../assets/icons/map/check.svg";

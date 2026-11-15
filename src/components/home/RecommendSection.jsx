@@ -9,14 +9,17 @@ import { chunk } from "../../utils/chunk.js";
 import sparkleIcon from "../../assets/icons/home/icon-sparkle.svg";
 
 const CARDS_PER_PAGE = 2;
+const HOME_RECOMMEND_COUNT = 6;
 
 /* 홈 "나를 위한 봉사 추천" 섹션. */
 export default function RecommendSection() {
   const navigate = useNavigate();
   const trackRef = useRef(null);
   const [page, setPage] = useState(0);
-  const pages = chunk(RECOMMENDED_POSTS, CARDS_PER_PAGE);
-
+  const pages = chunk(
+    RECOMMENDED_POSTS.slice(0, HOME_RECOMMEND_COUNT),
+    CARDS_PER_PAGE,
+  );
   function handleScroll() {
     const track = trackRef.current;
     setPage(Math.round(track.scrollLeft / track.clientWidth));
@@ -47,7 +50,13 @@ export default function RecommendSection() {
       </Track>
 
       <DotsArea>
-        <PageDots total={pages.length} current={page} onSelect={goToPage} size={7} gap={8} />
+        <PageDots
+          total={pages.length}
+          current={page}
+          onSelect={goToPage}
+          size={7}
+          gap={8}
+        />
       </DotsArea>
     </Section>
   );
