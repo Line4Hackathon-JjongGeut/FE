@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import styled from "styled-components";
 import BackHeader from "../../components/auth/BackHeader.jsx";
 import PageDots from "../../components/auth/PageDots.jsx";
@@ -10,18 +9,20 @@ import { RECOMMENDED_POSTS } from "../../dummyData/home/homeDummy.js";
 import { getPreferences } from "../../dummyData/onboarding/preferences.js";
 import { chunk } from "../../utils/chunk.js";
 import { formatPreferenceSummary } from "../../utils/preferenceSummary.js";
+import { readPageIndex } from "../../utils/pageParam.js";
 
 const CARDS_PER_PAGE = 4;
 
 /* 나를 위한 봉사 추천 전체 목록 */
 export default function Recommendations() {
   const navigate = useNavigate();
-  const [page, setPage] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
   const pages = chunk(RECOMMENDED_POSTS, CARDS_PER_PAGE);
+  const page = readPageIndex(searchParams, pages.length);
   const hasPreferences = formatPreferenceSummary(getPreferences()) !== null;
 
   function changePage(index) {
-    setPage(index);
+    setSearchParams(index > 0 ? { page: String(index + 1) } : {}, { replace: true });
     window.scrollTo({ top: 0 });
   }
 

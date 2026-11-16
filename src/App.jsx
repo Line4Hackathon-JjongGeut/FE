@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import RootLayout from "../src/layout/RootLayout.jsx";
+import ScrollToTop from "../src/components/common/ScrollToTop.jsx";
 
 // 메인 페이지
 import Home from "../src/pages/Home/Home.jsx";
@@ -47,9 +48,14 @@ import Recommendations from "../src/pages/Home/Recommendations.jsx";
 import UrgentList from "../src/pages/Home/UrgentList.jsx";
 import PreferenceEdit from "../src/pages/MyPage/PreferenceEdit.jsx";
 
+// 없는 주소
+import NotFound from "../src/pages/NotFound/NotFound.jsx";
+
 function App() {
   return (
     <BrowserRouter>
+      {/* 화면을 옮길 때마다 스크롤을 맨 위로 */}
+      <ScrollToTop />
       <Routes>
         {/* 검색 */}
         <Route path="/search" element={<Search />} />
@@ -94,7 +100,6 @@ function App() {
         <Route path="/recommendations" element={<Recommendations />} />
         <Route path="/urgent" element={<UrgentList />} />
         <Route path="/mypage/preferences" element={<PreferenceEdit />} />
-        <Route path="/mypage/preferences" element={<PreferenceEdit />} />
         <Route
           path="/mypage/preferences/region"
           element={<RegionSelect mode="edit" />}
@@ -115,6 +120,9 @@ function App() {
           <Route path="/activities" element={<Activities />} />
           <Route path="/mypage" element={<MyPage />} />
         </Route>
+
+        {/* 위에 없는 주소는 전부 404 화면으로 */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   );

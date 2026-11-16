@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import BackHeader from "../../components/auth/BackHeader.jsx";
 import TextInput from "../../components/auth/TextInput.jsx";
@@ -9,13 +8,16 @@ import ActivityTypeChips from "../../components/onboarding/ActivityTypeChips.jsx
 import { getPreferences, updatePreferences } from "../../dummyData/onboarding/preferences.js";
 import { toggleItem } from "../../utils/toggleItem.js";
 import { getDraft, updateDraft } from "../../dummyData/mypage/preferenceDraft.js";
+import { useGoBack } from "../../hooks/useGoBack.js";
 
 const CONTENT_MAX_LENGTH = 300;
 
 /* 이전 봉사 경험을 적는 화면 */
 export default function ExperienceForm({ mode = "onboarding" }) {
-  const navigate = useNavigate();
+  const goBack = useGoBack();
   const isEdit = mode === "edit";
+  // 주소로 바로 들어와서 돌아갈 기록이 없을 때 보낼 곳
+  const backPath = isEdit ? "/mypage/preferences" : "/onboarding/activity";
   // 이미 작성한 적이 있으면 그 내용을 불러와서 고칠 수 있도록
   const saved = isEdit ? getDraft().experience : getPreferences().experience;
   const [activityTypes, setActivityTypes] = useState(saved?.activityTypes ?? []);
@@ -27,16 +29,16 @@ export default function ExperienceForm({ mode = "onboarding" }) {
 
     if (isEdit) {
       updateDraft({ experience });
-      navigate(-1);
-      return;
+    } else {
+      updatePreferences({ experience });
     }
-    updatePreferences({ experience });
-    navigate("/onboarding/activity");
+    // 들어오기 전 화면(활동 선택 또는 추천 조건 수정)으로 돌아감
+    goBack(backPath);
   }
 
   return (
     <Screen>
-      <BackHeader title="봉사 경험 기입" onBack={() => navigate(-1)} />
+      <BackHeader title="봉사 경험 기입" onBack={() => goBack(backPath)} />
 
       <Body>
         <Section label="활동 유형" required hint="복수 선택 가능">

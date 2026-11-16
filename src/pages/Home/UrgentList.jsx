@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import styled from "styled-components";
 import BackHeader from "../../components/auth/BackHeader.jsx";
 import PageDots from "../../components/auth/PageDots.jsx";
 import UrgentDetailCard from "../../components/home/UrgentDetailCard.jsx";
 import { URGENT_POSTS } from "../../dummyData/home/homeDummy.js";
 import { chunk } from "../../utils/chunk.js";
+import { readPageIndex } from "../../utils/pageParam.js";
 
 const CARDS_PER_PAGE = 4;
 
@@ -18,19 +18,26 @@ const FILTERS = [
 /* 긴급 모집 화면 */
 export default function UrgentList() {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState("all");
-  const [page, setPage] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterParam = searchParams.get("filter");
+  const filter = FILTERS.some((item) => item.id === filterParam) ? filterParam : "all";
   const posts = filter === "all" ? URGENT_POSTS : URGENT_POSTS.filter((post) => post.type === filter);
   const pages = chunk(posts, CARDS_PER_PAGE);
+  const page = readPageIndex(searchParams, pages.length);
 
-  /* 필터를 바꾸면 목록 길이가 달라지니 첫 페이지부터 */
+  function updateParams(nextFilter, nextPage) {
+    const params = {};
+    if (nextFilter !== "all") params.filter = nextFilter;
+    if (nextPage > 0) params.page = String(nextPage + 1);
+    setSearchParams(params, { replace: true });
+  }
+
   function changeFilter(id) {
-    setFilter(id);
-    setPage(0);
+    updateParams(id, 0);
   }
 
   function changePage(index) {
-    setPage(index);
+    updateParams(filter, index);
     window.scrollTo({ top: 0 });
   }
 

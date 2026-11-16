@@ -19,7 +19,8 @@ export default function Login() {
     if (!canSubmit) return;
 
     // TODO: 로그인 API가 생기면 여기서 요청 보내기. 지금은 홈으로 이동
-    navigate("/");
+    // 로그인 뒤 뒤로가기를 눌러도 로그인 화면이 다시 나오지 않도록 replace
+    navigate("/", { replace: true });
   }
 
   return (
@@ -29,7 +30,10 @@ export default function Login() {
       <Form onSubmit={handleSubmit}>
         <Fields>
           <FormField label="아이디" required>
-            <TextInput value={userId} onChange={(event) => setUserId(event.target.value)} />
+            <TextInput
+              value={userId}
+              onChange={(event) => setUserId(event.target.value)}
+            />
           </FormField>
           <FormField label="비밀번호" required>
             <TextInput

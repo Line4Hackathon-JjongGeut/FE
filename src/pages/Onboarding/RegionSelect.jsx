@@ -7,6 +7,7 @@ import Section from "../../components/onboarding/Section.jsx";
 import SearchInput from "../../components/onboarding/SearchInput.jsx";
 import AddressItem from "../../components/onboarding/AddressItem.jsx";
 import { getPreferences } from "../../dummyData/onboarding/preferences.js";
+import { useGoBack } from "../../hooks/useGoBack.js";
 import { getDraft } from "../../dummyData/mypage/preferenceDraft.js";
 import {
   CURRENT_LOCATION,
@@ -17,6 +18,7 @@ import locationIcon from "../../assets/icons/onboarding/icon-location.svg";
 /* 희망 지역 설정 화면 */
 export default function RegionSelect({ mode = "onboarding" }) {
   const navigate = useNavigate();
+  const goBack = useGoBack();
   const isEdit = mode === "edit";
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -86,7 +88,7 @@ export default function RegionSelect({ mode = "onboarding" }) {
       step={2}
       title="어디에서 활동하고 싶나요?"
       description="주로 활동 가능한 지역을 설정해 주세요."
-      onPrev={() => navigate("/onboarding")}
+      onPrev={() => goBack("/onboarding")}
       onNext={() => navigate("/onboarding/schedule")}
       nextDisabled={!region}
     >
