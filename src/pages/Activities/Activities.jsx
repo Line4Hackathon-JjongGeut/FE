@@ -33,7 +33,10 @@ export default function Activities() {
   const [tab, setTab] = useState(
     openedTab === "history" || openedTab === "saved" || openedTab === "calendar" ? openedTab : "calendar",
   );
-  const [historyFilter, setHistoryFilter] = useState("전체");
+  // 마이페이지 "완료한 활동"에서 넘어오면 그 필터를 켠 채로 시작
+  const [historyFilter, setHistoryFilter] = useState(
+    HISTORY_FILTERS.includes(location.state?.filter) ? location.state.filter : "전체",
+  );  
   const [savedFilter, setSavedFilter] = useState("전체");
   const [cursor, setCursor] = useState(() => new Date(2026, 10, 1));
   const [selectedKey, setSelectedKey] = useState("2026-11-14");
