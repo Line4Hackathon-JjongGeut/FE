@@ -34,17 +34,13 @@ export default function MyPage() {
   }
 
   const activityMenus = [
-    { icon: applyIcon, label: "신청 내역", onClick: () => navigate("/activities", { state: { tab: "history" } }) },
+    { icon: applyIcon, label: "활동 내역", onClick: () => navigate("/activities", { state: { tab: "history" } }) },
     {
       icon: doneIcon,
       label: "완료한 활동",
       onClick: () => navigate("/activities", { state: { tab: "history", filter: "참여 완료" } }),
     },
-    {
-      icon: interestIcon,
-      label: "관심 활동",
-      onClick: () => navigate("/map", { state: { filter: "즐겨찾기" } }),
-    },
+    { icon: interestIcon, label: "저장된 활동", onClick: () => navigate("/activities", { state: { tab: "saved" } }) },
   ];
 
   const settingMenus = [
