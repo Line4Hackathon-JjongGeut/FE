@@ -1,16 +1,15 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
-import backIcon from "../../assets/icons/shelters/back.svg";
-import stepActiveIcon from "../../assets/icons/volunteer/step-active.svg";
-import stepIdleIcon from "../../assets/icons/volunteer/step-idle.svg";
-import stepCheckIcon from "../../assets/icons/volunteer/step-check.svg";
-import miniPawIcon from "../../assets/icons/volunteer/mini-paw.svg";
-import miniPinIcon from "../../assets/icons/volunteer/mini-pin.svg";
-import consentCircleIcon from "../../assets/icons/volunteer/consent-circle.svg";
-import infoRingIcon from "../../assets/icons/shelters/info-ring.svg";
-import infoStemIcon from "../../assets/icons/shelters/info-stem.svg";
-import { findVolunteerPost, SHELTER_DETAIL } from "../../dummyData/shelters/shelterDummy.js";
+import backIcon from "../../assets/icons/volunteer/apply/back.svg";
+import pawIcon from "../../assets/icons/volunteer/apply/paw.svg";
+import pinIcon from "../../assets/icons/volunteer/apply/pin.svg";
+import stepDoneIcon from "../../assets/icons/volunteer/apply/step-done.svg";
+import checkIcon from "../../assets/icons/volunteer/apply/check.svg";
+import chevronIcon from "../../assets/icons/volunteer/apply/chevron.svg";
+import infoRingIcon from "../../assets/icons/volunteer/apply/info-ring.svg";
+import infoStemIcon from "../../assets/icons/volunteer/apply/info-stem.svg";
+import { findVolunteerPost, SHELTER_DETAIL, VOLUNTEER_POSTS } from "../../dummyData/shelters/shelterDummy.js";
 import { addApplication } from "../../dummyData/volunteer/applications.js";
 
 const STEPS = [
@@ -25,17 +24,23 @@ const CONSENTS = [
   "봉사활동 유의사항 확인",
 ];
 
+const SAVED_PROFILE = {
+  name: "이현승",
+  phone: "010-1234-5678",
+};
+
 /* 지원하기를 누르면 신청 정보, 추가 질문, 동의 순서로 진행됩니다. */
 export default function Apply() {
   const navigate = useNavigate();
   const { postId } = useParams();
   const post = findVolunteerPost(postId);
+  const source = VOLUNTEER_POSTS.find((item) => item.id === Number(postId)) ?? VOLUNTEER_POSTS[0];
   const [step, setStep] = useState(1);
-  const [name, setName] = useState("이현승");
-  const [phone, setPhone] = useState("010-1234-5678");
-  const [experience, setExperience] = useState("1 - 3회/ 온보딩에서 입력한 경험");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [experience, setExperience] = useState("1 - 3회 / 온보딩에서 입력한 경험");
   const [editingExperience, setEditingExperience] = useState(false);
-  const [answer, setAnswer] = useState(null);
+  const [joined, setJoined] = useState("없어요");
   const [message, setMessage] = useState("");
   const [checked, setChecked] = useState(() => new Set());
 
@@ -54,7 +59,7 @@ export default function Apply() {
       shelter: SHELTER_DETAIL.name,
       schedule: post.schedule,
       place: "서울 용산구 보호시설",
-      applicant: name.trim() || "이현승",
+      applicant: name.trim() || SAVED_PROFILE.name,
       supplies: "편한 복장과 운동화를 착용해 주세요.\n활동 전 보호시설의 안내를 확인해 주세요.",
     });
     navigate("/volunteer/complete");
@@ -64,263 +69,311 @@ export default function Apply() {
     <Screen>
       <Header>
         <BackButton type="button" aria-label="뒤로 가기" onClick={() => (step === 1 ? navigate(-1) : setStep(step - 1))}>
+          {/* 아래를 향하는 꺾쇠를 돌려 왼쪽 화살표로 씁니다. */}
           <BackIcon src={backIcon} alt="" />
         </BackButton>
         <Title>봉사 신청</Title>
       </Header>
 
-      {/* 1 신청 정보, 2 추가 질문, 3 동의. 지난 단계는 체크, 현재 단계는 분홍색입니다. */}
+      {/* 지난 단계는 초록 원과 체크, 현재 단계는 분홍 원, 남은 단계는 회색 테두리 원입니다. */}
       <Stepper>
         {STEPS.map((item, index) => (
-          <Step key={item.id}>
-            <StepMark>
+          <StepSlot key={item.id}>
+            <StepColumn>
               {step > item.id ? (
-                <img src={stepCheckIcon} alt="" />
+                <DoneCircle>
+                  <img src={stepDoneIcon} alt="" />
+                  <Tick src={checkIcon} alt="" />
+                </DoneCircle>
               ) : (
-                <Dot>
-                  <img src={step === item.id ? stepActiveIcon : stepIdleIcon} alt="" />
-                  <StepNumber $current={step === item.id}>{item.id}</StepNumber>
-                </Dot>
+                <NumberCircle $current={step === item.id}>{item.id}</NumberCircle>
               )}
-              {index < STEPS.length - 1 && <Line />}
-            </StepMark>
-            <StepLabel $current={step === item.id}>{item.label}</StepLabel>
-          </Step>
+              <StepLabel $current={step === item.id}>{item.label}</StepLabel>
+            </StepColumn>
+            {index < STEPS.length - 1 && <Connector />}
+          </StepSlot>
         ))}
       </Stepper>
 
-      {step === 1 && (
-        <Body>
-          <Headline>신청할 활동을 확인해 주세요</Headline>
-          <Guide>선택한 일정과 신청 정보를 확인해 주세요.</Guide>
-          <SectionTitle>신청 활동</SectionTitle>
-          <ActivityCard>
-            <Thumb>
-              <img src={miniPawIcon} alt="" />
-              <ThumbLabel>활동 사진</ThumbLabel>
-            </Thumb>
-            <ActivityText>
-              <ActivityTitle>{post.title}</ActivityTitle>
-              <ShelterLine>
-                <img src={miniPinIcon} alt="" />
-                {post.shelterName}
-              </ShelterLine>
-            </ActivityText>
-          </ActivityCard>
+      <Body>
+        {step === 1 && (
+          <>
+            <Headline>신청할 활동을 확인해 주세요.</Headline>
+            <Guide>선택한 일정과 신청 정보를 확인해 주세요.</Guide>
 
-          <SectionTitle>신청 활동</SectionTitle>
-          <Schedule>
-            <Radio />
-            {post.schedule}
-          </Schedule>
+            <Section>
+              <SectionTitle>신청 활동</SectionTitle>
+              <ActivityCard>
+                <ActivityText>
+                  <ActivityTitle>{post.title}</ActivityTitle>
+                  <ShelterLine>
+                    <Pin src={pinIcon} alt="" />
+                    {source.shelterName}
+                  </ShelterLine>
+                </ActivityText>
+                {/* 연두색 둥근 사각형 안에 발바닥과 사진 자리 글자를 둡니다. */}
+                <PhotoBox>
+                  <Paw src={pawIcon} alt="" />
+                  <PhotoLabel>활동 사진</PhotoLabel>
+                </PhotoBox>
+              </ActivityCard>
+            </Section>
 
-          <SectionTitle>신청자 정보</SectionTitle>
-          <Field>
-            <FieldLabel>이름</FieldLabel>
-            <FieldInput value={name} onChange={(event) => setName(event.target.value)} />
-          </Field>
-          <Field>
-            <FieldLabel>연락처</FieldLabel>
-            <FieldInput value={phone} onChange={(event) => setPhone(event.target.value)} />
-          </Field>
-          <Hint>가입 시 입력한 정보가 자동으로 채워져요.</Hint>
-          <Grow />
-          <NextButton type="button" onClick={() => setStep(2)}>
-            다음
-          </NextButton>
-        </Body>
-      )}
+            <Section>
+              <SectionTitle>활동 시간 선택</SectionTitle>
+              <TimeOption type="button">
+                <FilledRadio>
+                  <RadioDot />
+                </FilledRadio>
+                {post.cardSchedule}
+              </TimeOption>
+            </Section>
 
-      {step === 2 && (
-        <Body>
-          <Headline>
-            보호시설에서 몇가지를
-            <br />
-            확인하고 싶어 해요
-          </Headline>
-          <Guide>공고에 따라 질문이 달라질 수 있어요.</Guide>
-
-          <SectionTitle>봉사 경험</SectionTitle>
-          <ExperienceRow>
-            {editingExperience ? (
-              <ExperienceInput value={experience} onChange={(event) => setExperience(event.target.value)} />
-            ) : (
-              <ExperienceText>{experience}</ExperienceText>
-            )}
-            <EditButton type="button" onClick={() => setEditingExperience((current) => !current)}>
-              수정
-            </EditButton>
-          </ExperienceRow>
-
-          <SectionTitle>추가 질문 1</SectionTitle>
-          <Question>동물과 함께하는 봉사에 참여한 적 있나요?</Question>
-          {/* 선택한 답만 분홍색으로 채워집니다. */}
-          <Answers>
-            {["네", "아니요"].map((choice) => (
-              <Answer
-                key={choice}
+            <Section>
+              <SectionTitle>신청자 정보</SectionTitle>
+              <Field
+                value={name}
+                placeholder="이름을 입력해 주세요."
+                onChange={(event) => setName(event.target.value)}
+              />
+              <Field
+                value={phone}
+                placeholder="연락처를 입력해 주세요."
+                onChange={(event) => setPhone(event.target.value)}
+              />
+              <ProfileLink
                 type="button"
-                $selected={answer === choice}
-                onClick={() => setAnswer(choice)}
+                onClick={() => {
+                  setName(SAVED_PROFILE.name);
+                  setPhone(SAVED_PROFILE.phone);
+                }}
               >
-                {choice}
-              </Answer>
-            ))}
-          </Answers>
+                가입 시 입력한 정보 가져오기
+              </ProfileLink>
+            </Section>
+          </>
+        )}
 
-          <SectionTitle>보호시설에 전할 말</SectionTitle>
-          <Message
-            value={message}
-            placeholder="참여 전에 전달할 내용을 적어주세요"
-            onChange={(event) => setMessage(event.target.value)}
-          />
-          <Grow />
-          <NextButton type="button" onClick={() => setStep(3)}>
-            다음
-          </NextButton>
-        </Body>
-      )}
-
-      {step === 3 && (
-        <Body>
-          <Headline>신청 전에 확인해 주세요</Headline>
-          <Guide>동의 후 신청이 접수되며, 참여는 승인 후 확정돼요.</Guide>
-          <Summary>
-            <Badge>참여 예정</Badge>
-            <SummaryTitle>{post.title}</SummaryTitle>
-            <SummaryTime>{post.schedule}</SummaryTime>
-          </Summary>
-
-          <SectionTitle>필수 확인 및 동의</SectionTitle>
-          {CONSENTS.map((label) => (
-            <Consent key={label} type="button" onClick={() => toggleConsent(label)}>
-              {checked.has(label) ? (
-                <img src={stepCheckIcon} alt="" />
-              ) : (
-                <img src={consentCircleIcon} alt="" />
-              )}
-              <ConsentText>{label}</ConsentText>
-              <Chevron src={backIcon} alt="" />
-            </Consent>
-          ))}
-
-          <Notice>
-            <InfoIcon aria-hidden="true">
-              <img src={infoRingIcon} alt="" />
-              <InfoStem src={infoStemIcon} alt="" />
-            </InfoIcon>
-            <span>
-              신청완료 후 보호시설이 검토해요.
+        {step === 2 && (
+          <>
+            <Headline>
+              보호 시설에 전달할 정보를
               <br />
-              승인 전에는 참여가 확정되지 않아요.
-            </span>
-          </Notice>
-          <Grow />
-          <NextButton type="button" onClick={finish}>
-            접수 신청 완료하기
-          </NextButton>
-        </Body>
-      )}
+              입력해 주세요.
+            </Headline>
+
+            <Section>
+              <SectionTitle>봉사 경험</SectionTitle>
+              <ExperienceBox>
+                {editingExperience ? (
+                  <ExperienceInput value={experience} onChange={(event) => setExperience(event.target.value)} autoFocus />
+                ) : (
+                  <ExperienceText>{experience}</ExperienceText>
+                )}
+              </ExperienceBox>
+              <ProfileLink type="button" onClick={() => setEditingExperience(true)}>
+                수정하기
+              </ProfileLink>
+            </Section>
+
+            <QuestionBlock>
+              <SectionTitle>
+                추가 질문<Required>*</Required>
+              </SectionTitle>
+              <Question>동물과 함께하는 봉사에 참여한 적이 있나요?</Question>
+              {["있어요", "없어요"].map((option) => (
+                <Choice key={option} type="button" onClick={() => setJoined(option)}>
+                  {joined === option ? (
+                    <FilledRadio $small>
+                      <RadioDot $small />
+                    </FilledRadio>
+                  ) : (
+                    <EmptyRadio />
+                  )}
+                  {option}
+                </Choice>
+              ))}
+            </QuestionBlock>
+
+            <Section>
+              <SectionTitle>보호시설에 전할 말</SectionTitle>
+              <Message
+                value={message}
+                placeholder="참여 전에 전달할 내용을 자유롭게 작성해 주세요."
+                onChange={(event) => setMessage(event.target.value)}
+              />
+            </Section>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <Headline>신청 전에 확인해 주세요.</Headline>
+            <SummaryCard>
+              <SummaryTop>
+                <PlanBadge>참여 예정</PlanBadge>
+                <SummaryTitle>{post.title}</SummaryTitle>
+              </SummaryTop>
+              <SummaryTime>{post.schedule}</SummaryTime>
+            </SummaryCard>
+
+            <Section>
+              <SectionTitle>필수 확인 및 동의</SectionTitle>
+              {CONSENTS.map((label) => (
+                <ConsentRow key={label} type="button" onClick={() => toggleConsent(label)}>
+                  {checked.has(label) ? (
+                    <FilledRadio $small>
+                      <RadioDot $small />
+                    </FilledRadio>
+                  ) : (
+                    <EmptyRadio />
+                  )}
+                  <ConsentLabel>{label}</ConsentLabel>
+                  {/* 아래를 향하는 꺾쇠를 돌려 오른쪽 화살표로 씁니다. */}
+                  <Chevron src={chevronIcon} alt="" />
+                </ConsentRow>
+              ))}
+            </Section>
+
+            <Notice>
+              <InfoMark>
+                <img src={infoRingIcon} alt="" />
+                <InfoStem src={infoStemIcon} alt="" />
+              </InfoMark>
+              <NoticeText>
+                <strong>신청완료 후 보호시설이 검토해요.</strong>
+                승인 전에는 참여가 확정되지 않아요.
+              </NoticeText>
+            </Notice>
+          </>
+        )}
+      </Body>
+
+      <Footer>
+        <NextButton type="button" onClick={() => (step === 3 ? finish() : setStep(step + 1))}>
+          {step === 3 ? "접수 신청 완료하기" : "다음"}
+        </NextButton>
+      </Footer>
     </Screen>
   );
 }
 
 const Screen = styled.div`
+  display: flex;
+  flex-direction: column;
   min-height: 100dvh;
   background-color: #ffffff;
-  color: #2f3833;
 `;
 
 const Header = styled.header`
-  position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: 32px 1fr 32px;
   align-items: center;
-  height: 72px;
-  padding: 20px 24px 0;
+  height: 56px;
+  padding: 0 16px;
 `;
 
 const BackButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   border: 0;
-  padding: 0;
   background: transparent;
   cursor: pointer;
 `;
 
 const BackIcon = styled.img`
-  display: block;
+  width: 18px;
+  height: 10px;
   transform: rotate(90deg);
 `;
 
 const Title = styled.h1`
-  position: absolute;
-  left: 50%;
   margin: 0;
-  transform: translateX(-50%);
   color: #424242;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
+  text-align: center;
 `;
 
-const Stepper = styled.ol`
+const Stepper = styled.div`
   display: flex;
   justify-content: center;
-  gap: 8px;
-  margin: 18px 0 0;
-  padding: 0;
-  list-style: none;
+  margin-top: 4px;
 `;
 
-const Step = styled.li`
+const StepSlot = styled.div`
   display: flex;
+  align-items: flex-start;
+`;
+
+const StepColumn = styled.div`
+  display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   align-items: center;
-  width: 92px;
+  width: 72px;
 `;
 
-const StepMark = styled.div`
-  position: relative;
+/* 현재 단계는 분홍 원, 아직 오지 않은 단계는 회색 테두리 원입니다. */
+const NumberCircle = styled.span`
   display: flex;
   align-items: center;
   justify-content: center;
-`;
-
-const Dot = styled.span`
-  position: relative;
-  display: inline-flex;
-`;
-
-const StepNumber = styled.span`
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: ${({ $current }) => ($current ? "#ffffff" : "#908b8a")};
-  font-size: 16px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background-color: ${(props) => (props.$current ? "#e88b7a" : "#ffffff")};
+  border: 1.5px solid ${(props) => (props.$current ? "#e88b7a" : "#d9d9d9")};
+  color: ${(props) => (props.$current ? "#ffffff" : "#908b8a")};
+  font-size: 13px;
   font-weight: 600;
 `;
 
-const Line = styled.span`
+const DoneCircle = styled.span`
+  position: relative;
+  width: 27px;
+  height: 27px;
+
+  img:first-child {
+    width: 27px;
+    height: 27px;
+  }
+`;
+
+const Tick = styled.img`
   position: absolute;
-  top: 16px;
-  left: 34px;
-  width: 58px;
-  height: 2px;
-  background-color: #d9d9d9;
+  top: 8px;
+  left: 7px;
+  width: 12px;
+  height: 9px;
 `;
 
 const StepLabel = styled.span`
   margin-top: 8px;
-  color: ${({ $current }) => ($current ? "#4f7a5f" : "#4a524d")};
+  color: ${(props) => (props.$current ? "#e88b7a" : "#4a524d")};
   font-size: 13px;
-  font-weight: 500;
+  font-weight: ${(props) => (props.$current ? 600 : 500)};
+  white-space: nowrap;
+`;
+
+/* 단계 원과 원 사이의 짧은 가로선입니다. */
+const Connector = styled.span`
+  flex-shrink: 0;
+  width: 28px;
+  height: 1px;
+  margin-top: 13px;
+  background-color: #d9d9d9;
 `;
 
 const Body = styled.div`
   display: flex;
+  flex: 1;
   flex-direction: column;
-  min-height: calc(100dvh - 168px);
-  padding: 28px 24px 28px;
+  gap: 26px;
+  padding: 28px 24px 12px;
 `;
 
 const Headline = styled.h2`
@@ -328,53 +381,48 @@ const Headline = styled.h2`
   color: #000000;
   font-size: 26px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 34px;
 `;
 
 const Guide = styled.p`
-  margin: 12px 0 0;
+  margin: -14px 0 0;
   color: #535353;
   font-size: 16px;
   font-weight: 500;
 `;
 
+const Section = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
 const SectionTitle = styled.h3`
-  margin: 22px 0 0;
+  margin: 0;
   color: #4f7a5f;
   font-size: 15px;
   font-weight: 600;
 `;
 
+const Required = styled.span`
+  color: #e28777;
+`;
+
+/* 회색 테두리의 가로로 긴 둥근 사각형입니다. */
 const ActivityCard = styled.div`
   display: flex;
-  gap: 12px;
   align-items: center;
+  justify-content: space-between;
   height: 79px;
-  margin-top: 10px;
-  padding: 12px;
+  padding: 0 12px 0 20px;
   border: 1px solid #908b8a;
   border-radius: 10px;
 `;
 
-const Thumb = styled.div`
+const ActivityText = styled.div`
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 69px;
-  height: 54px;
-  border-radius: 5px;
-  background-color: #bdd9c4;
-`;
-
-const ThumbLabel = styled.span`
-  color: #1f1e1c;
-  font-size: 7px;
-  font-weight: 600;
-`;
-
-const ActivityText = styled.div`
+  gap: 6px;
   min-width: 0;
 `;
 
@@ -388,169 +436,212 @@ const ActivityTitle = styled.p`
 const ShelterLine = styled.p`
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin: 6px 0 0;
+  gap: 6px;
+  margin: 0;
   color: #4f5a54;
   font-size: 12px;
   font-weight: 600;
 `;
 
-const Schedule = styled.div`
+const Pin = styled.img`
+  width: 9px;
+  height: 13px;
+`;
+
+/* 활동 사진이 들어갈 연두색 둥근 사각형입니다. */
+const PhotoBox = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 69px;
+  height: 54px;
+  border-radius: 5px;
+  background-color: #bdd9c4;
+`;
+
+const Paw = styled.img`
+  width: 17px;
+  height: 16px;
+`;
+
+const PhotoLabel = styled.span`
+  color: #1f1e1c;
+  font-size: 7px;
+  font-weight: 600;
+`;
+
+/* 선택된 시간. 연분홍 배경의 가로로 긴 둥근 사각형입니다. */
+const TimeOption = styled.button`
   display: flex;
   align-items: center;
-  gap: 14px;
-  height: 56px;
-  margin-top: 10px;
-  padding: 0 16px;
+  gap: 10px;
+  width: 100%;
+  height: 43px;
+  padding: 0 13px;
   border: 1px solid #d4897a;
   border-radius: 10px;
   background-color: #f7e6e1;
   color: #2f3833;
   font-size: 15px;
   font-weight: 600;
+  text-align: left;
+  cursor: pointer;
 `;
 
-const Radio = styled.span`
-  width: 22px;
-  height: 22px;
-  border: 6px solid #d4897a;
+/* 선택된 항목의 분홍색 동그라미입니다. */
+const FilledRadio = styled.span`
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: ${(props) => (props.$small ? "18px" : "22px")};
+  height: ${(props) => (props.$small ? "18px" : "22px")};
+  border-radius: 50%;
+  background-color: #d4897a;
+`;
+
+const RadioDot = styled.span`
+  width: ${(props) => (props.$small ? "7px" : "8px")};
+  height: ${(props) => (props.$small ? "7px" : "8px")};
   border-radius: 50%;
   background-color: #ffffff;
 `;
 
-const Field = styled.label`
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  height: 63px;
-  margin-top: 10px;
-  padding: 0 12px;
+/* 아직 고르지 않은 회색 테두리 동그라미입니다. */
+const EmptyRadio = styled.span`
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #d9d9d9;
+  border-radius: 50%;
+  box-sizing: border-box;
+`;
+
+const Field = styled.input`
+  width: 100%;
+  height: 43px;
+  padding: 0 17px;
   border: 1px solid #908b8a;
   border-radius: 10px;
-`;
-
-const FieldLabel = styled.span`
-  color: #908b8a;
-  font-size: 12px;
-  font-weight: 600;
-`;
-
-const FieldInput = styled.input`
-  border: 0;
-  padding: 0;
-  background: transparent;
   color: #2f3833;
   font-size: 15px;
-  font-weight: 600;
-  outline: none;
+  font-weight: 500;
+
+  &::placeholder {
+    color: #909090;
+    font-size: 13px;
+    font-weight: 500;
+  }
 `;
 
-const Hint = styled.p`
-  margin: 8px 0 0;
+const ProfileLink = styled.button`
+  align-self: flex-end;
+  margin-top: -4px;
+  border: 0;
+  background: transparent;
   color: #908b8a;
   font-size: 10px;
   font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
 `;
 
-const ExperienceRow = styled.div`
+const ExperienceBox = styled.div`
   display: flex;
-  gap: 8px;
-  margin-top: 10px;
-`;
-
-const ExperienceText = styled.div`
-  display: flex;
-  flex: 1;
   align-items: center;
-  height: 51px;
-  padding: 0 16px;
+  height: 43px;
+  padding: 0 18px;
   border: 1px solid #908b8a;
   border-radius: 10px;
+`;
+
+const ExperienceText = styled.p`
+  margin: 0;
   color: #2f3833;
   font-size: 15px;
   font-weight: 500;
 `;
 
 const ExperienceInput = styled.input`
-  flex: 1;
-  height: 51px;
-  padding: 0 16px;
-  border: 1px solid #908b8a;
-  border-radius: 10px;
+  width: 100%;
+  border: 0;
   color: #2f3833;
   font-size: 15px;
   font-weight: 500;
   outline: none;
 `;
 
-const EditButton = styled.button`
-  flex-shrink: 0;
-  width: 71px;
-  height: 51px;
-  border: 1.5px solid #e88b7a;
-  border-radius: 10px;
-  background-color: #fbe3dc;
-  color: #a9563f;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
+const QuestionBlock = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 `;
 
 const Question = styled.p`
-  margin: 8px 0 0;
-  color: #000000;
-  font-size: 15px;
+  margin: 0 0 4px;
+  color: #282828;
+  font-size: 14px;
   font-weight: 600;
 `;
 
-const Answers = styled.div`
+const Choice = styled.button`
   display: flex;
-  gap: 12px;
-  margin-top: 12px;
-`;
-
-const Answer = styled.button`
-  flex: 1;
-  height: 45px;
-  border: 1px solid ${({ $selected }) => ($selected ? "#d4897a" : "#908b8a")};
-  border-radius: 10px;
-  background-color: ${({ $selected }) => ($selected ? "#f7e6e1" : "#ffffff")};
-  color: #2f3833;
-  font-size: 15px;
-  font-weight: 600;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  border: 0;
+  background: transparent;
+  color: #4e4e4e;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
 `;
 
 const Message = styled.textarea`
+  width: 100%;
   height: 124px;
-  margin-top: 10px;
-  padding: 16px;
+  padding: 12px 15px;
   border: 1px solid #908b8a;
   border-radius: 10px;
-  color: #2f3833;
-  font-size: 15px;
-  font-weight: 600;
   resize: none;
-  outline: none;
+  color: #2f3833;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 19px;
 
   &::placeholder {
-    color: #bebebe;
+    color: #909090;
   }
 `;
 
-const Summary = styled.div`
-  position: relative;
-  min-height: 71px;
-  margin-top: 16px;
-  padding: 12px 14px;
+const SummaryCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-height: 64px;
+  padding: 12px;
   border: 1px solid #908b8a;
   border-radius: 10px;
 `;
 
-const Badge = styled.span`
+const SummaryTop = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+/* 연초록 알약 모양 배지입니다. */
+const PlanBadge = styled.span`
   display: inline-flex;
-  padding: 4px 10px;
-  border-radius: 8px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 11px;
   background-color: #e3f0e6;
   color: #2f5e43;
   font-size: 12px;
@@ -558,84 +649,99 @@ const Badge = styled.span`
 `;
 
 const SummaryTitle = styled.p`
-  margin: 8px 0 0;
+  margin: 0;
   color: #000000;
   font-size: 17px;
   font-weight: 600;
 `;
 
-const SummaryTime = styled.span`
-  position: absolute;
-  top: 36px;
-  right: 14px;
+const SummaryTime = styled.p`
+  margin: 0;
   color: #2f3833;
   font-size: 10px;
   font-weight: 500;
+  text-align: right;
 `;
 
-const Consent = styled.button`
+const ConsentRow = styled.button`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  height: 63px;
-  margin-top: 10px;
+  height: 43px;
   padding: 0 14px;
   border: 1px solid #908b8a;
   border-radius: 10px;
-  background: transparent;
-  text-align: left;
+  background-color: #ffffff;
   cursor: pointer;
 `;
 
-const ConsentText = styled.span`
+const ConsentLabel = styled.span`
   flex: 1;
-  color: #000000;
-  font-size: 15px;
+  color: #312d2d;
+  font-size: 14px;
   font-weight: 600;
+  text-align: left;
 `;
 
 const Chevron = styled.img`
-  display: block;
+  width: 13px;
+  height: 7px;
   transform: rotate(-90deg);
 `;
 
+/* 안내 글이 들어가는 베이지색 둥근 사각형입니다. */
 const Notice = styled.div`
   display: flex;
   gap: 8px;
-  margin-top: 16px;
   padding: 12px 14px;
   border-radius: 10px;
   background-color: #f7f4ef;
-  color: #5e5a55;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 19.5px;
 `;
 
-const InfoIcon = styled.span`
+const InfoMark = styled.span`
   position: relative;
-  display: inline-flex;
   flex-shrink: 0;
+  width: 16px;
+  height: 16px;
   margin-top: 2px;
+
+  img:first-child {
+    width: 14.5px;
+    height: 14.5px;
+  }
 `;
 
 const InfoStem = styled.img`
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 3px;
+  left: 6.5px;
+  width: 1.5px;
+  height: 8px;
 `;
 
-const Grow = styled.div`
-  flex: 1;
-  min-height: 24px;
+const NoticeText = styled.p`
+  margin: 0;
+  color: #5e5a55;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 19.5px;
+
+  strong {
+    display: block;
+    font-weight: 600;
+  }
 `;
 
+const Footer = styled.div`
+  margin-top: auto;
+  padding: 16px 19px 28px;
+`;
+
+/* 화면 아래쪽의 가로로 긴 분홍색 둥근 사각형 버튼입니다. */
 const NextButton = styled.button`
   width: 100%;
   height: 44px;
-  margin-top: 16px;
   border: 0;
   border-radius: 10px;
   background-color: #e88b7a;
