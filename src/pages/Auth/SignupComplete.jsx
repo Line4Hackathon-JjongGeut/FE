@@ -23,7 +23,7 @@ export default function SignupComplete() {
 
       <Actions>
         {/* 온보딩 화면은 다음 작업 예정 */}
-        <PrimaryButton onClick={() => navigate("/onboarding")}>내 참여 조건 설정하기</PrimaryButton>
+        <PrimaryButton onClick={() => navigate("/onboarding", { replace: true })}>내 참여 조건 설정하기</PrimaryButton>
         <SecondaryButton onClick={() => navigate("/", { replace: true })}>지금은 안 할래요</SecondaryButton>
       </Actions>
     </Screen>
