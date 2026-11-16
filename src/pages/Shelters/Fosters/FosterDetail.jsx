@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import backButtonIcon from "../../../assets/icons/shelters/detail/back-button.svg";
@@ -6,14 +6,17 @@ import dividerIcon from "../../../assets/icons/shelters/detail/divider.svg";
 import pawIcon from "../../../assets/icons/shelters/detail/paw.svg";
 import pawFilledIcon from "../../../assets/icons/shelters/detail/paw-filled.svg";
 import { findFosterPost } from "../../../dummyData/shelters/fosters/fosterDummy.js";
+import { deletePostingBookmark, getPostingDetail, postPostingBookmark } from "../../../api/postings.js";
 
 /* 지도에서 임시보호 카드를 눌렀을 때 열리는 임시보호 공고 상세입니다. */
 export default function FosterDetail() {
   const navigate = useNavigate();
   const { postId } = useParams();
-  const post = findFosterPost(postId);
+  const saved = findFosterPost(postId);
+  const [post, setPost] = useState(saved);
   const photos = post.photos;
   const [favorite, setFavorite] = useState(false);
+  const [savingBookmark, setSavingBookmark] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -32,6 +35,43 @@ export default function FosterDetail() {
     observer.observe(frame);
     return () => observer.disconnect();
   }, []);
+
+  /* 숫자 공고 번호면 모집공고 상세를 가져옵니다. 실패하면 임시 내용을 유지합니다. */
+  useEffect(() => {
+    if (!/^\d+$/.test(String(postId ?? ""))) return undefined;
+    setPost(findFosterPost(postId));
+    let ignore = false;
+    getPostingDetail(postId)
+      .then((result) => {
+        if (ignore || !result?.isSuccess || !result.data) return;
+        setPost((current) => ({ ...current, ...toFosterView(result.data), photos: current.photos }));
+        if (typeof result.data.bookmarked === "boolean") setFavorite(result.data.bookmarked);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [postId]);
+
+  /* 빈 발바닥은 관심 공고 저장, 채워진 발바닥은 관심 공고 해제입니다. */
+  async function saveBookmark() {
+    if (savingBookmark) return;
+    setSavingBookmark(true);
+    try {
+      if (favorite) {
+        await deletePostingBookmark(post.id);
+        setFavorite(false);
+        return;
+      }
+      const result = await postPostingBookmark(post.id);
+      if (result?.data?.bookmarked) setFavorite(true);
+    } catch (error) {
+      if (error.status === 409) setFavorite(true);
+      if (error.status === 404) setFavorite(false);
+    } finally {
+      setSavingBookmark(false);
+    }
+  }
 
   function showPhoto(nextIndex) {
     photoIndexRef.current = nextIndex;
@@ -151,7 +191,7 @@ export default function FosterDetail() {
           type="button"
           aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기"}
           aria-pressed={favorite}
-          onClick={() => setFavorite((current) => !current)}
+          onClick={saveBookmark}
         >
           <img src={favorite ? pawFilledIcon : pawIcon} alt="" />
         </PawButton>
@@ -162,6 +202,39 @@ export default function FosterDetail() {
       </ActionBar>
     </Screen>
   );
+}
+
+function toFosterView(data) {
+  const animal = [{ label: "동물", value: data.animalType || "" }].filter((row) => row.value);
+  const care = [
+    {
+      label: "문의 방법",
+      value: data.foster?.contactMethod === "APP" ? "앱 문의" : data.foster?.contactMethod || "",
+    },
+    { label: "외부 링크", value: data.foster?.externalUrl || "" },
+  ].filter((row) => row.value);
+  const view = {
+    id: data.postingId,
+    category: "임시보호",
+    postedAt: formatPosted(data.createdAt),
+    title: data.title ?? "",
+    shelterId: data.shelter?.shelterId,
+    shelterName: data.shelter?.name ?? "",
+    detail: data.description ?? "",
+  };
+  if (animal.length) view.animal = animal;
+  if (care.length) view.care = care;
+  return view;
+}
+
+function formatPosted(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value ?? "";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day} ${hours}:${minutes}`;
 }
 
 /* 노란 소제목 아래, 회색 라벨과 값을 여러 줄로 둔 칸입니다. */

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import backIcon from "../../assets/icons/volunteer/apply/back.svg";
@@ -9,6 +9,8 @@ import checkIcon from "../../assets/icons/volunteer/apply/check.svg";
 import chevronIcon from "../../assets/icons/volunteer/apply/chevron.svg";
 import infoRingIcon from "../../assets/icons/volunteer/apply/info-ring.svg";
 import infoStemIcon from "../../assets/icons/volunteer/apply/info-stem.svg";
+import { getPostingQuestions, getPostingSchedules } from "../../api/postings.js";
+import { postVolunteerApplication } from "../../api/volunteer.js";
 import { findVolunteerPost, SHELTER_DETAIL, VOLUNTEER_POSTS } from "../../dummyData/shelters/shelterDummy.js";
 import { addApplication } from "../../dummyData/volunteer/applications.js";
 
@@ -43,6 +45,63 @@ export default function Apply() {
   const [joined, setJoined] = useState("없어요");
   const [message, setMessage] = useState("");
   const [checked, setChecked] = useState(() => new Set());
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [schedules, setSchedules] = useState(null);
+  const [selectedKey, setSelectedKey] = useState("saved");
+  const [questions, setQuestions] = useState(null);
+  const [answerMap, setAnswerMap] = useState({});
+
+  /* 숫자 공고 번호면 신청 가능한 일정을 가져옵니다. 실패하면 기존 시간 하나를 유지합니다. */
+  useEffect(() => {
+    if (!/^\d+$/.test(String(postId ?? ""))) return undefined;
+    let ignore = false;
+    getPostingSchedules(postId)
+      .then((result) => {
+        if (ignore || !result?.isSuccess || !Array.isArray(result.data?.items)) return;
+        const options = result.data.items.map((item, index) => ({
+          key: String(item.scheduleId ?? item.activityStartAt ?? item.startAt ?? index),
+          scheduleId: item.scheduleId ?? null,
+          label: formatScheduleLabel(item),
+        }));
+        if (!options.length) return;
+        setSchedules(options);
+        setSelectedKey(options[0].key);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [postId]);
+
+  /* 숫자 공고 번호면 신청서 질문을 가져옵니다. 질문이 아니면 기존 추가 질문을 유지합니다. */
+  useEffect(() => {
+    if (!/^\d+$/.test(String(postId ?? ""))) return undefined;
+    let ignore = false;
+    getPostingQuestions(postId)
+      .then((result) => {
+        if (ignore || !result?.isSuccess || !Array.isArray(result.data?.items)) return;
+        const items = result.data.items.map(toQuestion).filter(Boolean);
+        if (!items.length) return;
+        setQuestions(items);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [postId]);
+
+  function chooseAnswer(question, option) {
+    setAnswerMap((current) => {
+      const prev = current[question.key] ?? [];
+      const next = question.multiple
+        ? prev.includes(option)
+          ? prev.filter((item) => item !== option)
+          : [...prev, option]
+        : [option];
+      return { ...current, [question.key]: next };
+    });
+  }
 
   function toggleConsent(label) {
     setChecked((current) => {
@@ -53,16 +112,44 @@ export default function Apply() {
     });
   }
 
-  function finish() {
-    addApplication({
-      title: post.title,
-      shelter: SHELTER_DETAIL.name,
-      schedule: post.schedule,
-      place: "서울 용산구 보호시설",
-      applicant: name.trim() || SAVED_PROFILE.name,
-      supplies: "편한 복장과 운동화를 착용해 주세요.\n활동 전 보호시설의 안내를 확인해 주세요.",
-    });
-    navigate("/volunteer/complete");
+  /* 접수 신청 완료하기. 선택한 일정으로 봉사 신청을 보내고, 성공하면 완료 화면으로 이동합니다. */
+  async function finish() {
+    if (submitting) return;
+    const chosen = schedules?.find((item) => item.key === selectedKey);
+    const scheduleId = chosen?.scheduleId ?? post.scheduleId ?? post.id;
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      const answers = questions?.length
+        ? questions
+            .filter((item) => item.questionId != null)
+            .map((item) => ({
+              questionId: item.questionId,
+              values: (answerMap[item.key] ?? []).filter((value) => value !== ""),
+            }))
+            .filter((item) => item.values.length)
+        : post.questionId != null
+          ? [{ questionId: post.questionId, values: [joined] }]
+          : [];
+      await postVolunteerApplication(scheduleId, {
+        answers,
+        message,
+        experienceId: post.experienceId,
+      });
+      addApplication({
+        title: post.title,
+        shelter: SHELTER_DETAIL.name,
+        schedule: chosen?.label ?? post.schedule,
+        place: "서울 용산구 보호시설",
+        applicant: name.trim() || SAVED_PROFILE.name,
+        supplies: "편한 복장과 운동화를 착용해 주세요.\n활동 전 보호시설의 안내를 확인해 주세요.",
+      });
+      navigate("/volunteer/complete");
+    } catch (error) {
+      setSubmitError(error.message || "신청에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -121,12 +208,28 @@ export default function Apply() {
 
             <Section>
               <SectionTitle>활동 시간 선택</SectionTitle>
-              <TimeOption type="button">
-                <FilledRadio>
-                  <RadioDot />
-                </FilledRadio>
-                {post.cardSchedule}
-              </TimeOption>
+              <TimeList>
+                {(schedules ?? [{ key: "saved", label: post.cardSchedule }]).map((option) => {
+                  const selected = option.key === selectedKey || (!schedules && option.key === "saved");
+                  return (
+                    <TimeOption
+                      key={option.key}
+                      type="button"
+                      $selected={selected}
+                      onClick={() => setSelectedKey(option.key)}
+                    >
+                      {selected ? (
+                        <FilledRadio>
+                          <RadioDot />
+                        </FilledRadio>
+                      ) : (
+                        <EmptyRadio $large />
+                      )}
+                      {option.label}
+                    </TimeOption>
+                  );
+                })}
+              </TimeList>
             </Section>
 
             <Section>
@@ -176,24 +279,60 @@ export default function Apply() {
               </ProfileLink>
             </Section>
 
-            <QuestionBlock>
-              <SectionTitle>
-                추가 질문<Required>*</Required>
-              </SectionTitle>
-              <Question>동물과 함께하는 봉사에 참여한 적이 있나요?</Question>
-              {["있어요", "없어요"].map((option) => (
-                <Choice key={option} type="button" onClick={() => setJoined(option)}>
-                  {joined === option ? (
-                    <FilledRadio $small>
-                      <RadioDot $small />
-                    </FilledRadio>
+            {questions?.length ? (
+              questions.map((question) => (
+                <QuestionBlock key={question.key}>
+                  <SectionTitle>
+                    {question.label}
+                    {question.required && <Required>*</Required>}
+                  </SectionTitle>
+                  {question.text ? (
+                    <Message
+                      value={(answerMap[question.key] ?? [])[0] ?? ""}
+                      placeholder="답변을 입력해 주세요."
+                      onChange={(event) =>
+                        setAnswerMap((current) => ({ ...current, [question.key]: [event.target.value] }))
+                      }
+                    />
                   ) : (
-                    <EmptyRadio />
+                    question.choices.map((option) => {
+                      const picked = (answerMap[question.key] ?? []).includes(option);
+                      return (
+                        <Choice key={option} type="button" onClick={() => chooseAnswer(question, option)}>
+                          {picked ? (
+                            <FilledRadio $small>
+                              <RadioDot $small />
+                            </FilledRadio>
+                          ) : (
+                            <EmptyRadio />
+                          )}
+                          {option}
+                        </Choice>
+                      );
+                    })
                   )}
-                  {option}
-                </Choice>
-              ))}
-            </QuestionBlock>
+                </QuestionBlock>
+              ))
+            ) : (
+              <QuestionBlock>
+                <SectionTitle>
+                  추가 질문<Required>*</Required>
+                </SectionTitle>
+                <Question>동물과 함께하는 봉사에 참여한 적이 있나요?</Question>
+                {["있어요", "없어요"].map((option) => (
+                  <Choice key={option} type="button" onClick={() => setJoined(option)}>
+                    {joined === option ? (
+                      <FilledRadio $small>
+                        <RadioDot $small />
+                      </FilledRadio>
+                    ) : (
+                      <EmptyRadio />
+                    )}
+                    {option}
+                  </Choice>
+                ))}
+              </QuestionBlock>
+            )}
 
             <Section>
               <SectionTitle>보호시설에 전할 말</SectionTitle>
@@ -250,7 +389,12 @@ export default function Apply() {
       </Body>
 
       <Footer>
-        <NextButton type="button" onClick={() => (step === 3 ? finish() : setStep(step + 1))}>
+        {step === 3 && submitError && <SubmitError>{submitError}</SubmitError>}
+        <NextButton
+          type="button"
+          disabled={submitting}
+          onClick={() => (step === 3 ? finish() : setStep(step + 1))}
+        >
           {step === 3 ? "접수 신청 완료하기" : "다음"}
         </NextButton>
       </Footer>
@@ -472,7 +616,49 @@ const PhotoLabel = styled.span`
   font-weight: 600;
 `;
 
-/* 선택된 시간. 연분홍 배경의 가로로 긴 둥근 사각형입니다. */
+function toQuestion(item, index) {
+  const questionId = item.questionId ?? item.id ?? null;
+  const label = item.label ?? item.content ?? item.question ?? item.title ?? item.text ?? "";
+  const rawChoices = item.choices ?? item.options ?? item.selectOptions ?? [];
+  const choices = (Array.isArray(rawChoices) ? rawChoices : [])
+    .map((choice) => (typeof choice === "string" ? choice : choice?.label ?? choice?.value ?? choice?.text ?? ""))
+    .filter(Boolean);
+  const typeName = String(item.type ?? item.questionType ?? item.inputType ?? "").toUpperCase();
+  const multiple = item.multiple === true || typeName.includes("MULTI");
+  const text = choices.length === 0 || typeName.includes("TEXT");
+  if (questionId == null && !label) return null;
+  return {
+    key: String(questionId ?? index),
+    questionId,
+    label: label || "추가 질문",
+    required: item.required === true || item.isRequired === true,
+    multiple,
+    text,
+    choices: text ? [] : choices,
+  };
+}
+
+function formatScheduleLabel(item) {
+  const start = item.startAt ?? item.activityStartAt;
+  const end = item.endAt ?? item.activityEndAt;
+  const startDate = new Date(start);
+  if (Number.isNaN(startDate.getTime())) return item.postingTitle || "일정";
+  const week = ["일", "월", "화", "수", "목", "금", "토"][startDate.getDay()];
+  const clock = (date) =>
+    `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  const endDate = new Date(end);
+  const range = Number.isNaN(endDate.getTime()) ? clock(startDate) : `${clock(startDate)}-${clock(endDate)}`;
+  const remain = item.remainingCount != null ? ` · 잔여 ${item.remainingCount}명` : "";
+  return `${startDate.getMonth() + 1}월 ${startDate.getDate()}일 (${week}) ${range}${remain}`;
+}
+
+const TimeList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+/* 시간 선택. 고른 칸만 연분홍 배경입니다. */
 const TimeOption = styled.button`
   display: flex;
   align-items: center;
@@ -480,9 +666,9 @@ const TimeOption = styled.button`
   width: 100%;
   height: 43px;
   padding: 0 13px;
-  border: 1px solid #d4897a;
+  border: 1px solid ${(props) => (props.$selected ? "#d4897a" : "#d9d9d9")};
   border-radius: 10px;
-  background-color: #f7e6e1;
+  background-color: ${(props) => (props.$selected ? "#f7e6e1" : "#ffffff")};
   color: #2f3833;
   font-size: 15px;
   font-weight: 600;
@@ -512,8 +698,8 @@ const RadioDot = styled.span`
 /* 아직 고르지 않은 회색 테두리 동그라미입니다. */
 const EmptyRadio = styled.span`
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: ${(props) => (props.$large ? "22px" : "18px")};
+  height: ${(props) => (props.$large ? "22px" : "18px")};
   border: 2px solid #d9d9d9;
   border-radius: 50%;
   box-sizing: border-box;
@@ -736,6 +922,13 @@ const NoticeText = styled.p`
 const Footer = styled.div`
   margin-top: auto;
   padding: 16px 19px 28px;
+`;
+
+const SubmitError = styled.p`
+  margin: 0 0 8px;
+  color: #c4513b;
+  font-size: 13px;
+  font-weight: 500;
 `;
 
 /* 화면 아래쪽의 가로로 긴 분홍색 둥근 사각형 버튼입니다. */

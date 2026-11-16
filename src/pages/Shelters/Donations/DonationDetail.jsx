@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import backButtonIcon from "../../../assets/icons/shelters/detail/back-button.svg";
@@ -9,14 +9,17 @@ import pawIcon from "../../../assets/icons/shelters/detail/paw.svg";
 import pawFilledIcon from "../../../assets/icons/shelters/detail/paw-filled.svg";
 import infoIcon from "../../../assets/icons/donations/info.svg";
 import { findDonationPost } from "../../../dummyData/shelters/donations/donationDummy.js";
+import { deletePostingBookmark, getPostingDetail, postPostingBookmark } from "../../../api/postings.js";
 
 /* 지도에서 후원 카드를 눌렀을 때 열리는 후원 공고 상세입니다. */
 export default function DonationDetail() {
   const navigate = useNavigate();
   const { postId } = useParams();
-  const post = findDonationPost(postId);
+  const saved = findDonationPost(postId);
+  const [post, setPost] = useState(saved);
   const photos = post.photos;
   const [favorite, setFavorite] = useState(false);
+  const [savingBookmark, setSavingBookmark] = useState(false);
   const [copied, setCopied] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
@@ -25,6 +28,43 @@ export default function DonationDetail() {
   const dragRef = useRef(null);
   const photoIndexRef = useRef(0);
   const [frameWidth, setFrameWidth] = useState(0);
+
+  /* 숫자 공고 번호면 모집공고 상세를 가져옵니다. 실패하면 임시 내용을 유지합니다. */
+  useEffect(() => {
+    if (!/^\d+$/.test(String(postId ?? ""))) return undefined;
+    setPost(findDonationPost(postId));
+    let ignore = false;
+    getPostingDetail(postId)
+      .then((result) => {
+        if (ignore || !result?.isSuccess || !result.data) return;
+        setPost((current) => ({ ...current, ...toDonationView(result.data), photos: current.photos }));
+        if (typeof result.data.bookmarked === "boolean") setFavorite(result.data.bookmarked);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [postId]);
+
+  /* 빈 발바닥은 관심 공고 저장, 채워진 발바닥은 관심 공고 해제입니다. */
+  async function saveBookmark() {
+    if (savingBookmark) return;
+    setSavingBookmark(true);
+    try {
+      if (favorite) {
+        await deletePostingBookmark(post.id);
+        setFavorite(false);
+        return;
+      }
+      const result = await postPostingBookmark(post.id);
+      if (result?.data?.bookmarked) setFavorite(true);
+    } catch (error) {
+      if (error.status === 409) setFavorite(true);
+      if (error.status === 404) setFavorite(false);
+    } finally {
+      setSavingBookmark(false);
+    }
+  }
 
   /* 사진 칸의 가로 길이를 재서, 한 장씩 정확히 밀리게 합니다. */
   useLayoutEffect(() => {
@@ -203,7 +243,7 @@ export default function DonationDetail() {
           type="button"
           aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기"}
           aria-pressed={favorite}
-          onClick={() => setFavorite((current) => !current)}
+          onClick={saveBookmark}
         >
           <img src={favorite ? pawFilledIcon : pawIcon} alt="" />
         </PawButton>
@@ -212,6 +252,46 @@ export default function DonationDetail() {
       </ActionBar>
     </Screen>
   );
+}
+
+function toDonationView(data) {
+  const region = [data.shelter?.region?.sido, data.shelter?.region?.sigungu].filter(Boolean).join(" ");
+  const info = [
+    { label: "후원 목적", value: data.sponsor?.donationPurpose || "" },
+    { label: "모집 마감", value: formatDay(data.recruitEndAt) },
+    { label: "동물", value: data.animalType || "" },
+  ].filter((row) => row.value);
+  const view = {
+    id: data.postingId,
+    category: "후원",
+    postedAt: formatPosted(data.createdAt),
+    title: data.title ?? "",
+    shelterId: data.shelter?.shelterId,
+    shelterName: data.shelter?.name ?? "",
+    detail: data.description ?? "",
+    note: data.sponsor?.donationLinkAvailable
+      ? "후원 링크를 통해 바로 후원할 수 있어요."
+      : "시설에 문의한 뒤 후원해 주세요.",
+    address: data.shelter?.address || region,
+  };
+  if (info.length) view.info = info;
+  return view;
+}
+
+function formatPosted(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value ?? "";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day} ${hours}:${minutes}`;
+}
+
+function formatDay(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`;
 }
 
 /* 페이지 전체. 아래 고정 막대에 글이 가리지 않도록 밑을 비워 둡니다. */

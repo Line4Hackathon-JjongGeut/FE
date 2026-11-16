@@ -1,10 +1,14 @@
-import { useState } from "react";
+
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
+
 import photoPawIcon from "../../assets/icons/activities/photo-paw.svg";
 import clockIcon from "../../assets/icons/activities/clock.svg";
 import pawIcon from "../../assets/icons/activities/paw.svg";
 import pawFilledIcon from "../../assets/icons/activities/paw-filled.svg";
+
+import { getMyApplications } from "../../api/volunteer.js";
 import { getApplications, toggleFavorite } from "../../dummyData/volunteer/applications.js";
 import { FILTER_COLORS } from "../../dummyData/map/mapDummy.js";
 
@@ -25,40 +29,121 @@ const BADGE = {
   "신청 반려": { background: "#f9eae7", color: "#c8807a" },
 };
 
+/* 화면의 상태 이름과 목록 조회에 보내는 status 값입니다. */
+const STATUS_QUERY = {
+  "승인 대기": "PENDING",
+  "참여 예정": "APPROVED",
+  "참여 완료": "COMPLETED",
+};
+
+/* 응답의 status를 화면 배지 문구로 바꿉니다. */
+const STATUS_LABEL = {
+  PENDING: "승인 대기",
+  APPROVED: "참여 예정",
+  CONFIRMED: "참여 예정",
+  COMPLETED: "참여 완료",
+  REJECTED: "신청 반려",
+  CANCELED: "신청 취소",
+  CANCELLED: "신청 취소",
+};
+
 /* 하단 메뉴의 활동을 누르면 캘린더, 활동 내역, 저장을 오갑니다. */
 export default function Activities() {
   const navigate = useNavigate();
   const location = useLocation();
   const openedTab = location.state?.tab;
+
   const [tab, setTab] = useState(
-    openedTab === "history" || openedTab === "saved" || openedTab === "calendar" ? openedTab : "calendar",
+    openedTab === "history" || openedTab === "saved" || openedTab === "calendar"
+      ? openedTab
+      : "calendar",
   );
-  // 마이페이지 "완료한 활동"에서 넘어오면 그 필터를 켠 채로 시작
+
+  // ⭐ 내 코드 추가: 마이페이지에서 넘어오면 전달받은 필터로 시작
   const [historyFilter, setHistoryFilter] = useState(
-    HISTORY_FILTERS.includes(location.state?.filter) ? location.state.filter : "전체",
-  );  
+    HISTORY_FILTERS.includes(location.state?.filter)
+      ? location.state.filter
+      : "전체",
+  );
+
   const [savedFilter, setSavedFilter] = useState("전체");
   const [cursor, setCursor] = useState(() => new Date(2026, 10, 1));
   const [selectedKey, setSelectedKey] = useState("2026-11-14");
   const [monthOpen, setMonthOpen] = useState(false);
   const [items, setItems] = useState(() => getApplications());
 
+  /* null이면 아직 목록 API를 못 받은 상태라 임시 목록을 보여 줍니다. */
+  const [historyItems, setHistoryItems] = useState(null);
+
+  /* 활동 내역 탭의 신청 목록을 최근 신청순으로 가져옵니다. 실패하면 임시 목록을 유지합니다. */
+  useEffect(() => {
+    if (tab !== "history") return undefined;
+
+    let ignore = false;
+
+    const status =
+      historyFilter === "전체" || historyFilter === "즐겨찾기"
+        ? undefined
+        : STATUS_QUERY[historyFilter];
+
+    getMyApplications({ status, page: 0, size: 20 })
+      .then((result) => {
+        if (ignore || !result?.isSuccess || !result.data) return;
+
+        setHistoryItems((current) => {
+          const favorites = new Set(
+            (current ?? [])
+              .filter((item) => item.favorite)
+              .map((item) => String(item.id)),
+          );
+
+          return (result.data.items ?? []).map((item) => {
+            const card = toApplicationCard(item);
+            return {
+              ...card,
+              favorite: favorites.has(String(card.id)),
+            };
+          });
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      ignore = true;
+    };
+  }, [tab, historyFilter]);
+
   function openDetail(id) {
-    navigate(`/activities/${id}`, { state: { from: tab === "saved" ? "saved" : "history" } });
+    navigate(`/activities/${id}`, {
+      state: { from: tab === "saved" ? "saved" : "history" },
+    });
   }
 
   function refresh(id) {
     toggleFavorite(id);
     setItems(getApplications());
+
+    setHistoryItems(
+      (current) =>
+        current?.map((item) =>
+          String(item.id) === String(id)
+            ? { ...item, favorite: !item.favorite }
+            : item,
+        ) ?? current,
+    );
   }
 
   const history = items.filter((item) => item.inHistory !== false);
+  const historySource = historyItems ?? history;
   const saved = items.filter((item) => item.favorite);
-  const calendarItems = items.filter((item) => item.onCalendar && item.activityDate);
+  const calendarItems = items.filter(
+    (item) => item.onCalendar && item.activityDate,
+  );
 
-  const visibleHistory = history.filter((item) => {
-    if (historyFilter === "전체") return true;
+  const visibleHistory = historySource.filter((item) => {
     if (historyFilter === "즐겨찾기") return item.favorite;
+    if (historyItems) return true;
+    if (historyFilter === "전체") return true;
     return item.status === historyFilter;
   });
 
@@ -70,7 +155,11 @@ export default function Activities() {
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
   const selected = parseKey(selectedKey);
-  const selectedItems = calendarItems.filter((item) => item.activityDate === selectedKey);
+
+  const selectedItems = calendarItems.filter(
+    (item) => item.activityDate === selectedKey,
+  );
+
   const upcoming = calendarItems
     .filter((item) => item.activityDate > selectedKey)
     .sort((a, b) => a.activityDate.localeCompare(b.activityDate));
@@ -78,15 +167,27 @@ export default function Activities() {
   function shiftMonth(amount) {
     const next = new Date(year, month + amount, 1);
     setCursor(next);
-    const day = Math.min(selected.getDate(), daysInMonth(next.getFullYear(), next.getMonth()));
-    setSelectedKey(keyOf(new Date(next.getFullYear(), next.getMonth(), day)));
+
+    const day = Math.min(
+      selected.getDate(),
+      daysInMonth(next.getFullYear(), next.getMonth()),
+    );
+
+    setSelectedKey(
+      keyOf(new Date(next.getFullYear(), next.getMonth(), day)),
+    );
   }
 
   return (
     <Screen>
       <TabBar>
         {TABS.map((item) => (
-          <Tab key={item.id} type="button" $active={tab === item.id} onClick={() => setTab(item.id)}>
+          <Tab
+            key={item.id}
+            type="button"
+            $active={tab === item.id}
+            onClick={() => setTab(item.id)}
+          >
             {item.label}
           </Tab>
         ))}
@@ -95,13 +196,23 @@ export default function Activities() {
       {tab === "calendar" && (
         <>
           <MonthBar>
-            <ArrowButton type="button" aria-label="이전 달" onClick={() => shiftMonth(-1)}>
+            <ArrowButton
+              type="button"
+              aria-label="이전 달"
+              onClick={() => shiftMonth(-1)}
+            >
               <Arrow $dir="left" />
             </ArrowButton>
+
             <MonthTitle>
               {year}년 {month + 1}월
             </MonthTitle>
-            <ArrowButton type="button" aria-label="다음 달" onClick={() => shiftMonth(1)}>
+
+            <ArrowButton
+              type="button"
+              aria-label="다음 달"
+              onClick={() => shiftMonth(1)}
+            >
               <Arrow $dir="right" />
             </ArrowButton>
           </MonthBar>
@@ -112,44 +223,83 @@ export default function Activities() {
             ))}
           </WeekNames>
 
-          {(monthOpen ? monthWeeks(year, month) : [weekOf(selected)]).map((week) => (
+          {(monthOpen
+            ? monthWeeks(year, month)
+            : [weekOf(selected)]
+          ).map((week) => (
             <WeekRow key={keyOf(week[0])}>
               {week.map((date) => {
                 const key = keyOf(date);
                 const inMonth = date.getMonth() === month;
-                const marked = calendarItems.some((item) => item.activityDate === key);
+                const marked = calendarItems.some(
+                  (item) => item.activityDate === key,
+                );
+
                 return (
-                  <DayButton key={key} type="button" onClick={() => setSelectedKey(key)}>
-                    <DayNumber $selected={key === selectedKey} $muted={!inMonth}>
+                  <DayButton
+                    key={key}
+                    type="button"
+                    onClick={() => setSelectedKey(key)}
+                  >
+                    <DayNumber
+                      $selected={key === selectedKey}
+                      $muted={!inMonth}
+                    >
                       {date.getDate()}
                     </DayNumber>
+
                     {/* 일정이 있는 날 아래의 작은 초록 점 두 개입니다. */}
-                    <Dots>{marked && inMonth ? <><Dot /><Dot /></> : null}</Dots>
+                    <Dots>
+                      {marked && inMonth ? (
+                        <>
+                          <Dot />
+                          <Dot />
+                        </>
+                      ) : null}
+                    </Dots>
                   </DayButton>
                 );
               })}
             </WeekRow>
           ))}
 
-          <ExpandButton type="button" onClick={() => setMonthOpen((open) => !open)}>
+          <ExpandButton
+            type="button"
+            onClick={() => setMonthOpen((open) => !open)}
+          >
             월 전체 보기
             <ExpandChevron $open={monthOpen} />
           </ExpandButton>
 
           <DayHeading>{dateLabel(selected)}</DayHeading>
+
           {selectedItems.map((item) => (
-            <CalendarCard key={item.id} item={item} onOpen={() => openDetail(item.id)} onFavorite={() => refresh(item.id)} />
+            <CalendarCard
+              key={item.id}
+              item={item}
+              onOpen={() => openDetail(item.id)}
+              onFavorite={() => refresh(item.id)}
+            />
           ))}
 
           {upcoming.length > 0 && (
             <>
               <Divider />
               <SectionTitle>다가오는 활동</SectionTitle>
+
               {groupByDate(upcoming).map((group) => (
                 <div key={group.key}>
-                  <DayHeading>{dateLabel(parseKey(group.key))}</DayHeading>
+                  <DayHeading>
+                    {dateLabel(parseKey(group.key))}
+                  </DayHeading>
+
                   {group.items.map((item) => (
-                    <CalendarCard key={item.id} item={item} onOpen={() => openDetail(item.id)} onFavorite={() => refresh(item.id)} />
+                    <CalendarCard
+                      key={item.id}
+                      item={item}
+                      onOpen={() => openDetail(item.id)}
+                      onFavorite={() => refresh(item.id)}
+                    />
                   ))}
                 </div>
               ))}
@@ -161,33 +311,60 @@ export default function Activities() {
       {tab !== "calendar" && (
         <>
           <Filters>
-            {(tab === "history" ? HISTORY_FILTERS : SAVED_FILTERS).map((name) => {
-              const active = (tab === "history" ? historyFilter : savedFilter) === name;
+            {(tab === "history"
+              ? HISTORY_FILTERS
+              : SAVED_FILTERS
+            ).map((name) => {
+              const active =
+                (tab === "history" ? historyFilter : savedFilter) === name;
+
               return (
                 <Filter
                   key={name}
                   type="button"
                   $active={active}
-                  $color={tab === "saved" ? FILTER_COLORS[name] : undefined}
-                  onClick={() => (tab === "history" ? setHistoryFilter(name) : setSavedFilter(name))}
+                  $color={
+                    tab === "saved"
+                      ? FILTER_COLORS[name]
+                      : undefined
+                  }
+                  onClick={() =>
+                    tab === "history"
+                      ? setHistoryFilter(name)
+                      : setSavedFilter(name)
+                  }
                 >
                   {name}
                 </Filter>
               );
             })}
           </Filters>
+
           <List>
-            {(tab === "history" ? visibleHistory : visibleSaved).map((item) => (
-              <HistoryCard key={item.id} type="button" onClick={() => openDetail(item.id)}>
-                <Badge $background={BADGE[item.status].background} $color={BADGE[item.status].color}>
+            {(tab === "history"
+              ? visibleHistory
+              : visibleSaved
+            ).map((item) => (
+              <HistoryCard
+                key={item.id}
+                type="button"
+                onClick={() => openDetail(item.id)}
+              >
+                <Badge
+                  $background={badgeStyle(item.status).background}
+                  $color={badgeStyle(item.status).color}
+                >
                   {item.status}
                 </Badge>
+
                 <CardTitle>{item.title}</CardTitle>
                 <Shelter>{item.shelter}</Shelter>
+
                 <Time>
                   <Clock src={clockIcon} alt="" />
                   {item.schedule}
                 </Time>
+
                 <Favorite
                   type="button"
                   aria-label={item.favorite ? "저장 해제" : "저장"}
@@ -196,11 +373,24 @@ export default function Activities() {
                     refresh(item.id);
                   }}
                 >
-                  <Paw src={tab === "saved" || item.favorite ? pawFilledIcon : pawIcon} alt="" />
+                  <Paw
+                    src={
+                      tab === "saved" || item.favorite
+                        ? pawFilledIcon
+                        : pawIcon
+                    }
+                    alt=""
+                  />
                 </Favorite>
               </HistoryCard>
             ))}
-            {(tab === "history" ? visibleHistory : visibleSaved).length === 0 && <Empty>표시할 활동이 없어요.</Empty>}
+
+            {(tab === "history"
+              ? visibleHistory
+              : visibleSaved
+            ).length === 0 && (
+              <Empty>표시할 활동이 없어요.</Empty>
+            )}
           </List>
         </>
       )}
@@ -215,31 +405,90 @@ function CalendarCard({ item, onOpen, onFavorite }) {
         <PhotoPaw src={photoPawIcon} alt="" />
         <PhotoLabel>임시보호 사진</PhotoLabel>
       </PhotoBox>
+
       <CalendarBody type="button" onClick={onOpen}>
-        <Badge $background={BADGE[item.status].background} $color={BADGE[item.status].color}>
+        <Badge
+          $background={BADGE[item.status].background}
+          $color={BADGE[item.status].color}
+        >
           {item.status}
         </Badge>
+
         <CardTitle>{item.title}</CardTitle>
         <Shelter>{item.shelter}</Shelter>
+
         <Time>
           <Clock src={clockIcon} alt="" />
           {item.schedule}
         </Time>
       </CalendarBody>
+
       <Favorite
         type="button"
         aria-label={item.favorite ? "저장 해제" : "저장"}
         onClick={onFavorite}
       >
-        <Paw src={item.favorite ? pawFilledIcon : pawIcon} alt="" />
+        <Paw
+          src={item.favorite ? pawFilledIcon : pawIcon}
+          alt=""
+        />
       </Favorite>
     </CalendarRow>
   );
 }
 
+/* 목록 응답 한 건을 활동 카드에 맞게 바꿉니다. */
+function toApplicationCard(item) {
+  return {
+    id: item.applicationId,
+    status: STATUS_LABEL[item.status] ?? item.status,
+    title: item.title,
+    shelter: item.shelter?.name ?? "",
+    shelterId: item.shelter?.shelterId,
+    schedule: formatActivityTime(
+      item.activityStartAt,
+      item.activityEndAt,
+    ),
+    postingId: item.postingId,
+    scheduleId: item.scheduleId,
+    cancellable: item.cancellable,
+    favorite: false,
+    category: "봉사",
+  };
+}
+
+function formatActivityTime(start, end) {
+  const startDate = new Date(start);
+
+  if (Number.isNaN(startDate.getTime())) return "";
+
+  const hours = (date) =>
+    `${String(date.getHours()).padStart(2, "0")}:${String(
+      date.getMinutes(),
+    ).padStart(2, "0")}`;
+
+  const head = `${startDate.getMonth() + 1}/${startDate.getDate()}(${
+    WEEKDAYS[startDate.getDay()]
+  }) ${hours(startDate)}`;
+
+  const endDate = new Date(end);
+
+  if (Number.isNaN(endDate.getTime())) return head;
+
+  return `${head} ~ ${hours(endDate)}`;
+}
+
+function badgeStyle(status) {
+  return BADGE[status] ?? {
+    background: "#e9e9e9",
+    color: "#50545a",
+  };
+}
+
 function keyOf(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
+
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
@@ -249,7 +498,9 @@ function parseKey(key) {
 }
 
 function dateLabel(date) {
-  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${WEEKDAYS[date.getDay()]}요일`;
+  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${
+    WEEKDAYS[date.getDay()]
+  }요일`;
 }
 
 function daysInMonth(year, month) {
@@ -257,25 +508,56 @@ function daysInMonth(year, month) {
 }
 
 function weekOf(date) {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate() - date.getDay());
-  return Array.from({ length: 7 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index));
+  const start = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate() - date.getDay(),
+  );
+
+  return Array.from(
+    { length: 7 },
+    (_, index) =>
+      new Date(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate() + index,
+      ),
+  );
 }
 
 function monthWeeks(year, month) {
   const first = new Date(year, month, 1);
   const start = new Date(year, month, 1 - first.getDay());
+
   return Array.from({ length: 6 }, (_, week) =>
-    Array.from({ length: 7 }, (_, day) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + week * 7 + day)),
+    Array.from(
+      { length: 7 },
+      (_, day) =>
+        new Date(
+          start.getFullYear(),
+          start.getMonth(),
+          start.getDate() + week * 7 + day,
+        ),
+    ),
   );
 }
 
 function groupByDate(list) {
   const groups = [];
+
   list.forEach((item) => {
     const last = groups[groups.length - 1];
-    if (last && last.key === item.activityDate) last.items.push(item);
-    else groups.push({ key: item.activityDate, items: [item] });
+
+    if (last && last.key === item.activityDate) {
+      last.items.push(item);
+    } else {
+      groups.push({
+        key: item.activityDate,
+        items: [item],
+      });
+    }
   });
+
   return groups;
 }
 
@@ -312,7 +594,8 @@ const Tab = styled.button`
     bottom: -1px;
     left: 0;
     height: 2px;
-    background-color: ${(props) => (props.$active ? "#e88b7a" : "transparent")};
+    background-color: ${(props) =>
+      props.$active ? "#e88b7a" : "transparent"};
   }
 `;
 
@@ -349,7 +632,8 @@ const Arrow = styled.span`
   height: 8px;
   border-bottom: 2px solid #222222;
   border-left: 2px solid #222222;
-  transform: rotate(${(props) => (props.$dir === "left" ? "45deg" : "-135deg")});
+  transform: rotate(${(props) =>
+    props.$dir === "left" ? "45deg" : "-135deg"});
 `;
 
 const WeekNames = styled.div`
@@ -391,7 +675,8 @@ const DayNumber = styled.span`
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background-color: ${(props) => (props.$selected ? "#b07557" : "transparent")};
+  background-color: ${(props) =>
+    props.$selected ? "#b07557" : "transparent"};
   color: ${(props) => {
     if (props.$selected) return "#ffffff";
     if (props.$muted) return "#c8c8c8";
@@ -435,7 +720,8 @@ const ExpandChevron = styled.span`
   margin-bottom: ${(props) => (props.$open ? "0" : "3px")};
   border-right: 1.5px solid #b07557;
   border-bottom: 1.5px solid #b07557;
-  transform: rotate(${(props) => (props.$open ? "-135deg" : "45deg")});
+  transform: rotate(${(props) =>
+    props.$open ? "-135deg" : "45deg"});
 `;
 
 const DayHeading = styled.p`
