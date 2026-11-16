@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import IntroHero from "../../components/auth/IntroHero.jsx";
 import IntroSlide from "../../components/auth/IntroSlide.jsx";
 import PageDots from "../../components/auth/PageDots.jsx";
@@ -30,12 +30,19 @@ const SLIDES = [
 
 const TOTAL = SLIDES.length + 1;
 const SWIPE_DISTANCE = 50;
+const AUTO_SLIDE_DELAY = 3000;
 
 /* 서비스 소개 1~3 화면. 좌우로 밀거나 점을 눌러 넘기게 */
 export default function Intro() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const startX = useRef(null);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setStep((current) => (current + 1) % TOTAL);
+    }, AUTO_SLIDE_DELAY);
+    return () => clearTimeout(timer);
+  }, [step]);
 
   function handlePointerDown(event) {
     startX.current = event.clientX;
@@ -46,14 +53,14 @@ export default function Intro() {
     const distance = event.clientX - startX.current;
     startX.current = null;
 
-    if (distance < -SWIPE_DISTANCE && step < TOTAL - 1) setStep(step + 1);
-    if (distance > SWIPE_DISTANCE && step > 0) setStep(step - 1);
+    if (distance < -SWIPE_DISTANCE) setStep((step + 1) % TOTAL);
+    if (distance > SWIPE_DISTANCE) setStep((step - 1 + TOTAL) % TOTAL);
   }
 
   return (
     <Screen>
       <Content onPointerDown={handlePointerDown} onPointerUp={handlePointerUp}>
-        <SlideArea>{step === 0 ? <IntroHero /> : <IntroSlide {...SLIDES[step - 1]} />}</SlideArea>
+        <SlideArea key={step}>{step === 0 ? <IntroHero /> : <IntroSlide {...SLIDES[step - 1]} />}</SlideArea>
         <DotsArea>
           <PageDots total={TOTAL} current={step} onSelect={setStep} />
         </DotsArea>
@@ -94,12 +101,25 @@ const Content = styled.div`
   }
 `;
 
-/* 화면마다 높이가 달라도 점 위치가 흔들리지 않게 높이를 고정 */
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+`;
+
 const SlideArea = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   height: 360px;
+  animation: ${fadeIn} 0.4s ease;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 `;
 
 const DotsArea = styled.div`

@@ -2,8 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import BackHeader from "../../components/auth/BackHeader.jsx";
+import PageDots from "../../components/auth/PageDots.jsx";
 import UrgentDetailCard from "../../components/home/UrgentDetailCard.jsx";
 import { URGENT_POSTS } from "../../dummyData/home/homeDummy.js";
+import { chunk } from "../../utils/chunk.js";
+
+const CARDS_PER_PAGE = 4;
 
 const FILTERS = [
   { id: "all", label: "전체" },
@@ -15,7 +19,20 @@ const FILTERS = [
 export default function UrgentList() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState("all");
+  const [page, setPage] = useState(0);
   const posts = filter === "all" ? URGENT_POSTS : URGENT_POSTS.filter((post) => post.type === filter);
+  const pages = chunk(posts, CARDS_PER_PAGE);
+
+  /* 필터를 바꾸면 목록 길이가 달라지니 첫 페이지부터 */
+  function changeFilter(id) {
+    setFilter(id);
+    setPage(0);
+  }
+
+  function changePage(index) {
+    setPage(index);
+    window.scrollTo({ top: 0 });
+  }
 
   return (
     <Screen>
@@ -30,7 +47,7 @@ export default function UrgentList() {
               role="radio"
               aria-checked={filter === item.id}
               $active={filter === item.id}
-              onClick={() => setFilter(item.id)}
+              onClick={() => changeFilter(item.id)}
             >
               {item.label}
             </FilterChip>
@@ -38,7 +55,7 @@ export default function UrgentList() {
         </Filters>
 
         <Cards>
-          {posts.map((post) => (
+          {(pages[page] ?? []).map((post) => (
             <UrgentDetailCard
               key={post.id}
               post={post}
@@ -48,6 +65,12 @@ export default function UrgentList() {
           {posts.length === 0 && <Empty>지금은 급하게 도움이 필요한 곳이 없어요.</Empty>}
         </Cards>
       </Body>
+
+      {pages.length > 0 && (
+        <DotsArea>
+          <PageDots total={pages.length} current={page} onSelect={changePage} size={7} gap={8} />
+        </DotsArea>
+      )}
     </Screen>
   );
 }
@@ -61,24 +84,25 @@ const Screen = styled.div`
 
 const Body = styled.div`
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 20px;
-  padding: 36px 25px 40px;
+  gap: 19px;
+  padding: 10px 25px 0;
 `;
 
 const Filters = styled.div`
   display: flex;
-  gap: 11px;
+  gap: 6px;
 `;
 
 const FilterChip = styled.button`
-  height: 32px;
-  padding: 0 13px 0 12px;
-  border: 1px solid ${({ $active }) => ($active ? "#c33e24" : "#e2ded8")};
-  border-radius: 10px;
-  background-color: ${({ $active }) => ($active ? "#c33e24" : "#ffffff")};
+  height: 28px;
+  padding: 0 13px;
+  border: 1px solid ${({ $active }) => ($active ? "#382f2f" : "#e2ded8")};
+  border-radius: 18px;
+  background-color: ${({ $active }) => ($active ? "#382f2f" : "#ffffff")};
   color: ${({ $active }) => ($active ? "#ffffff" : "#382f2f")};
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 `;
@@ -86,7 +110,13 @@ const FilterChip = styled.button`
 const Cards = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 15px;
+`;
+
+const DotsArea = styled.div`
+  display: flex;
+  justify-content: center;
+  padding: 15px 0 40px;
 `;
 
 const Empty = styled.p`

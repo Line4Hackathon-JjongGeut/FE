@@ -146,7 +146,8 @@ export const URGENT_POSTS = [
     title: "견사 청소 봉사",
     current: 0,
     total: 6,
-    needs: "보호소 청소/ 견사 정리",
+    schedule: "11/08(일) 10:00 ~ 13:00",
+    distance: "2.8km",
   },
   {
     id: 2,
@@ -157,7 +158,8 @@ export const URGENT_POSTS = [
     title: "유기견 산책 봉사",
     current: 1,
     total: 6,
-    needs: "소형견 산책",
+    schedule: "11/09(월) 14:00 ~ 17:00",
+    distance: "1.2km",
   },
   {
     id: 3,
@@ -167,7 +169,7 @@ export const URGENT_POSTS = [
     region: "마포구",
     title: "사료 후원",
     percent: 20,
-    needs: "사료/ 배변 패드",
+    schedule: "11/16(월) ~ 11/27(금)",
   },
 ];
 
