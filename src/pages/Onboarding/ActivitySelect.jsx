@@ -8,12 +8,7 @@ import RadioGroup from "../../components/onboarding/RadioGroup.jsx";
 import ExperienceCard from "../../components/onboarding/ExperienceCard.jsx";
 import { getPreferences, updatePreferences } from "../../dummyData/onboarding/preferences.js";
 import { toggleItem } from "../../utils/toggleItem.js";
-
-const EXPERIENCE_LEVELS = [
-  { id: "none", label: "처음이에요" },
-  { id: "few", label: "1~3회" },
-  { id: "many", label: "4회 이상" },
-];
+import { EXPERIENCE_LEVELS } from "../../dummyData/onboarding/preferenceOptions.js";
 
 /* 관심 활동 선택 화면 */
 export default function ActivitySelect() {
