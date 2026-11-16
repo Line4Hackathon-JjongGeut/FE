@@ -14,6 +14,7 @@ import ExperienceCard from "../../components/onboarding/ExperienceCard.jsx";
 import AnimalChip from "../../components/mypage/AnimalChip.jsx";
 import { getDraft, updateDraft, saveDraft } from "../../dummyData/mypage/preferenceDraft.js";
 import { TIME_SLOTS, FREQUENCIES, EXPERIENCE_LEVELS } from "../../dummyData/onboarding/preferenceOptions.js";
+import { CURRENT_LOCATION } from "../../dummyData/onboarding/regionDummy.js";
 import { toggleItem } from "../../utils/toggleItem.js";
 import { formatPhone, isValidPhone } from "../../utils/formatPhone.js";
 import dogIcon from "../../assets/icons/mypage/animal-dog.svg";
@@ -69,8 +70,7 @@ export default function PreferenceEdit() {
         <Divider />
 
         <Section label="활동 지역" required>
-          {/* TODO: 지역 검색 화면 연결 */}
-          <RegionField type="button">
+          <RegionField type="button" onClick={() => navigate("/mypage/preferences/region")}>
             <img src={searchIcon} alt="" />
             {form.region ? (
               form.region.road.split(" ").slice(0, 2).join(" ")
@@ -78,8 +78,12 @@ export default function PreferenceEdit() {
               <Placeholder>활동 지역을 설정해 주세요</Placeholder>
             )}
           </RegionField>
-          {/* TODO: 지도 화면 연결 */}
-          <LocateButton type="button">현재 위치로 찾기</LocateButton>
+          <LocateButton
+            type="button"
+            onClick={() => navigate("/mypage/preferences/region/map", { state: { address: CURRENT_LOCATION } })}
+          >
+            현재 위치로 찾기
+          </LocateButton>
         </Section>
 
         <Divider />
@@ -147,8 +151,10 @@ export default function PreferenceEdit() {
             />
           </Section>
 
-          {/* TODO: 경험 작성 화면 연결 */}
-          <ExperienceCard done={form.experience !== null} />
+          <ExperienceCard
+            done={form.experience !== null}
+            onClick={() => navigate("/mypage/preferences/experience")}
+          />
         </Group>
       </Body>
 

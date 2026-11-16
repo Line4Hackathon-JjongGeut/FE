@@ -8,20 +8,29 @@ import Section from "../../components/onboarding/Section.jsx";
 import ActivityTypeChips from "../../components/onboarding/ActivityTypeChips.jsx";
 import { getPreferences, updatePreferences } from "../../dummyData/onboarding/preferences.js";
 import { toggleItem } from "../../utils/toggleItem.js";
+import { getDraft, updateDraft } from "../../dummyData/mypage/preferenceDraft.js";
 
 const CONTENT_MAX_LENGTH = 300;
 
 /* 이전 봉사 경험을 적는 화면 */
-export default function ExperienceForm() {
+export default function ExperienceForm({ mode = "onboarding" }) {
   const navigate = useNavigate();
+  const isEdit = mode === "edit";
   // 이미 작성한 적이 있으면 그 내용을 불러와서 고칠 수 있도록
-  const saved = getPreferences().experience;
+  const saved = isEdit ? getDraft().experience : getPreferences().experience;
   const [activityTypes, setActivityTypes] = useState(saved?.activityTypes ?? []);
   const [organization, setOrganization] = useState(saved?.organization ?? "");
   const [content, setContent] = useState(saved?.content ?? "");
 
   function handleSubmit() {
-    updatePreferences({ experience: { activityTypes, organization: organization.trim(), content: content.trim() } });
+    const experience = { activityTypes, organization: organization.trim(), content: content.trim() };
+
+    if (isEdit) {
+      updateDraft({ experience });
+      navigate(-1);
+      return;
+    }
+    updatePreferences({ experience });
     navigate("/onboarding/activity");
   }
 

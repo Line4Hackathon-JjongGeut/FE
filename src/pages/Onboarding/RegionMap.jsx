@@ -7,14 +7,21 @@ import { updatePreferences } from "../../dummyData/onboarding/preferences.js";
 import { CURRENT_LOCATION } from "../../dummyData/onboarding/regionDummy.js";
 import pinIcon from "../../assets/icons/onboarding/icon-map-pin.svg";
 import locationIcon from "../../assets/icons/onboarding/icon-location.svg";
+import { updateDraft } from "../../dummyData/mypage/preferenceDraft.js";
 
 /* 지도에서 위치 확인 후 활동 지역으로 등록하는 화면 */
-export default function RegionMap() {
+export default function RegionMap({ mode = "onboarding" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [address, setAddress] = useState(location.state?.address ?? CURRENT_LOCATION);
 
   function handleRegister() {
+    if (mode === "edit") {
+      updateDraft({ region: address });
+      // 검색 화면을 거쳐 왔으면 두 칸 뒤(수정 화면)로, 바로 왔으면 한 칸 뒤로
+      navigate(location.state?.fromSearch ? -2 : -1);
+      return;
+    }
     updatePreferences({ region: address });
     navigate(-1);
   }

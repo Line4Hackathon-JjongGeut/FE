@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import styled from "styled-components";
 import OnboardingStep from "../../components/onboarding/OnboardingStep.jsx";
+import BackHeader from "../../components/auth/BackHeader.jsx";
 import Section from "../../components/onboarding/Section.jsx";
 import SearchInput from "../../components/onboarding/SearchInput.jsx";
 import AddressItem from "../../components/onboarding/AddressItem.jsx";
 import { getPreferences } from "../../dummyData/onboarding/preferences.js";
+import { getDraft } from "../../dummyData/mypage/preferenceDraft.js";
 import {
   CURRENT_LOCATION,
   searchAddresses,
@@ -13,12 +15,13 @@ import {
 import locationIcon from "../../assets/icons/onboarding/icon-location.svg";
 
 /* 희망 지역 설정 화면 */
-export default function RegionSelect() {
+export default function RegionSelect({ mode = "onboarding" }) {
   const navigate = useNavigate();
+  const isEdit = mode === "edit";
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
-  const region = getPreferences().region;
+  const region = isEdit ? getDraft().region : getPreferences().region;
 
   // 검색어가 없으면 이미 등록한 주소만, 있으면 검색 결과
   const addresses = query.trim()
@@ -29,18 +32,15 @@ export default function RegionSelect() {
 
   function openMap(address) {
     setSearchParams(query ? { q: query } : {}, { replace: true });
-    navigate("/onboarding/region/map", { state: { address } });
+    if (isEdit) {
+      navigate("/mypage/preferences/region/map", { state: { address, fromSearch: true } });
+    } else {
+      navigate("/onboarding/region/map", { state: { address } });
+    }
   }
 
-  return (
-    <OnboardingStep
-      step={2}
-      title="어디에서 활동하고 싶나요?"
-      description="주로 활동 가능한 지역을 설정해 주세요."
-      onPrev={() => navigate("/onboarding")}
-      onNext={() => navigate("/onboarding/schedule")}
-      nextDisabled={!region}
-    >
+  const content = (
+    <>
       <Section label="활동 지역">
         <SearchInput
           value={query}
@@ -69,9 +69,40 @@ export default function RegionSelect() {
           </Empty>
         )}
       </Results>
+    </>
+  );
+
+  if (isEdit) {
+    return (
+      <EditScreen>
+        <BackHeader title="활동 지역 설정" onBack={() => navigate(-1)} />
+        <EditBody>{content}</EditBody>
+      </EditScreen>
+    );
+  }
+
+  return (
+    <OnboardingStep
+      step={2}
+      title="어디에서 활동하고 싶나요?"
+      description="주로 활동 가능한 지역을 설정해 주세요."
+      onPrev={() => navigate("/onboarding")}
+      onNext={() => navigate("/onboarding/schedule")}
+      nextDisabled={!region}
+    >
+      {content}
     </OnboardingStep>
   );
 }
+
+const EditScreen = styled.div`
+  min-height: 100dvh;
+  background-color: #ffffff;
+`;
+
+const EditBody = styled.div`
+  padding: 30px 24px 40px;
+`;
 
 const LocateButton = styled.button`
   display: flex;
