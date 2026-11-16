@@ -3,9 +3,12 @@ import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import SectionHeader from "./SectionHeader.jsx";
 import RecommendCard from "./RecommendCard.jsx";
+import RecommendEmpty from "./RecommendEmpty.jsx";
 import PageDots from "../auth/PageDots.jsx";
 import { RECOMMENDED_POSTS } from "../../dummyData/home/homeDummy.js";
+import { getPreferences } from "../../dummyData/onboarding/preferences.js";
 import { chunk } from "../../utils/chunk.js";
+import { formatPreferenceSummary } from "../../utils/preferenceSummary.js";
 import sparkleIcon from "../../assets/icons/home/icon-sparkle.svg";
 
 const CARDS_PER_PAGE = 2;
@@ -16,6 +19,7 @@ export default function RecommendSection() {
   const navigate = useNavigate();
   const trackRef = useRef(null);
   const [page, setPage] = useState(0);
+  const hasPreferences = formatPreferenceSummary(getPreferences()) !== null;
   const pages = chunk(
     RECOMMENDED_POSTS.slice(0, HOME_RECOMMEND_COUNT),
     CARDS_PER_PAGE,
@@ -38,26 +42,31 @@ export default function RecommendSection() {
         linkLabel="전체보기"
         onLinkClick={() => navigate("/recommendations")}
       />
-
-      <Track ref={trackRef} onScroll={handleScroll}>
-        {pages.map((cards, index) => (
-          <Page key={index}>
-            {cards.map((post) => (
-              <RecommendCard key={post.id} post={post} />
+      {hasPreferences ? (
+        <>
+          <Track ref={trackRef} onScroll={handleScroll}>
+            {pages.map((cards, index) => (
+              <Page key={index}>
+                {cards.map((post) => (
+                  <RecommendCard key={post.id} post={post} />
+                ))}
+              </Page>
             ))}
-          </Page>
-        ))}
-      </Track>
+          </Track>
 
-      <DotsArea>
-        <PageDots
-          total={pages.length}
-          current={page}
-          onSelect={goToPage}
-          size={7}
-          gap={8}
-        />
-      </DotsArea>
+          <DotsArea>
+            <PageDots
+              total={pages.length}
+              current={page}
+              onSelect={goToPage}
+              size={7}
+              gap={8}
+            />
+          </DotsArea>
+        </>
+      ) : (
+        <RecommendEmpty />
+      )}
     </Section>
   );
 }
