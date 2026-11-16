@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import backIcon from "../../../assets/icons/fosters/back.svg";
+import { postFosterInquiry } from "../../../api/postings.js";
 import { findFosterPost } from "../../../dummyData/shelters/fosters/fosterDummy.js";
 import { addApplication } from "../../../dummyData/volunteer/applications.js";
 
@@ -19,16 +20,32 @@ export default function FosterApply() {
   const [homeNote, setHomeNote] = useState("");
   const [experience, setExperience] = useState("없어요");
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
-  function finish() {
-    addApplication({
-      title: post.title,
-      shelter: post.shelterName,
-      schedule: period.trim() || "기간 미입력",
-      place: home === "기타" ? homeNote.trim() || "기타" : home,
-      applicant: name.trim() || "이름 미입력",
-    });
-    navigate(`/fosters/${post.id}/complete`);
+  /* 지원 완료하기. 연락처와 전할 말을 시설에 보내고, 성공하면 완료 화면으로 이동합니다. */
+  async function finish() {
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      await postFosterInquiry(post.id, {
+        message,
+        contactPhone: phone.trim(),
+      });
+      addApplication({
+        title: post.title,
+        shelter: post.shelterName,
+        schedule: period.trim() || "기간 미입력",
+        place: home === "기타" ? homeNote.trim() || "기타" : home,
+        applicant: name.trim() || "이름 미입력",
+      });
+      navigate(`/fosters/${post.id}/complete`);
+    } catch (error) {
+      setSubmitError(error.message || "참여 의사를 전달하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -151,7 +168,8 @@ export default function FosterApply() {
       </Form>
 
       {/* 가로로 긴 둥근 사각형 버튼. 속을 살구색으로 채웁니다. */}
-      <SubmitButton type="button" onClick={finish}>
+      {submitError && <SubmitError>{submitError}</SubmitError>}
+      <SubmitButton type="button" disabled={submitting} onClick={finish}>
         지원 완료하기
       </SubmitButton>
     </Screen>
@@ -346,6 +364,13 @@ const OtherInput = styled.input`
   background: transparent;
   color: #4e4e4e;
   font-size: 14px;
+  font-weight: 500;
+`;
+
+const SubmitError = styled.p`
+  margin: 24px 0 0;
+  color: #c4513b;
+  font-size: 13px;
   font-weight: 500;
 `;
 

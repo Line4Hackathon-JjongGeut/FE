@@ -54,7 +54,7 @@ export const APIService = {
     put: (path, body) => request("PUT", path, body),
     /* 기존 데이터 일부만 바꿀 때 씁니다. */
     patch: (path, body) => request("PATCH", path, body),
-    /* 저장된 데이터를 지울 때 씁니다. */
-    delete: (path) => request("DELETE", path),
+    /* 저장된 데이터를 지울 때 씁니다. 취소 사유처럼 본문이 있으면 함께 보냅니다. */
+    delete: (path, body) => request("DELETE", path, body),
   },
 };

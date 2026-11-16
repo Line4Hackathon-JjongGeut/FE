@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import backButtonIcon from "../../assets/icons/shelters/detail/back-button.svg";
@@ -8,14 +8,17 @@ import pinIcon from "../../assets/icons/shelters/volunteer/pin.svg";
 import pawIcon from "../../assets/icons/shelters/detail/paw.svg";
 import pawFilledIcon from "../../assets/icons/shelters/detail/paw-filled.svg";
 import { findVolunteerPost } from "../../dummyData/shelters/shelterDummy.js";
+import { deletePostingBookmark, getPostingDetail, postPostingBookmark } from "../../api/postings.js";
 
 /* 공고 제목이나 모집 카드를 눌렀을 때 열리는 봉사 공고 상세입니다. */
 export default function VolunteerDetail() {
   const navigate = useNavigate();
   const { postId } = useParams();
-  const post = findVolunteerPost(postId);
+  const saved = findVolunteerPost(postId);
+  const [post, setPost] = useState(saved);
   const photos = post.photos;
   const [favorite, setFavorite] = useState(false);
+  const [savingBookmark, setSavingBookmark] = useState(false);
   const [copied, setCopied] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
@@ -24,6 +27,43 @@ export default function VolunteerDetail() {
   const dragRef = useRef(null);
   const photoIndexRef = useRef(0);
   const [frameWidth, setFrameWidth] = useState(0);
+
+  /* 숫자 공고 번호면 모집공고 상세를 가져옵니다. 실패하면 임시 내용을 유지합니다. */
+  useEffect(() => {
+    if (!/^\d+$/.test(String(postId ?? ""))) return undefined;
+    setPost(findVolunteerPost(postId));
+    let ignore = false;
+    getPostingDetail(postId)
+      .then((result) => {
+        if (ignore || !result?.isSuccess || !result.data) return;
+        setPost((current) => ({ ...current, ...toVolunteerView(result.data), photos: current.photos }));
+        if (typeof result.data.bookmarked === "boolean") setFavorite(result.data.bookmarked);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [postId]);
+
+  /* 빈 발바닥은 관심 공고 저장, 채워진 발바닥은 관심 공고 해제입니다. */
+  async function saveBookmark() {
+    if (savingBookmark) return;
+    setSavingBookmark(true);
+    try {
+      if (favorite) {
+        await deletePostingBookmark(post.id);
+        setFavorite(false);
+        return;
+      }
+      const result = await postPostingBookmark(post.id);
+      if (result?.data?.bookmarked) setFavorite(true);
+    } catch (error) {
+      if (error.status === 409) setFavorite(true);
+      if (error.status === 404) setFavorite(false);
+    } finally {
+      setSavingBookmark(false);
+    }
+  }
 
   /* 사진 칸의 가로 길이를 재서, 한 장씩 정확히 밀리게 합니다. */
   useLayoutEffect(() => {
@@ -221,7 +261,7 @@ export default function VolunteerDetail() {
           type="button"
           aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기"}
           aria-pressed={favorite}
-          onClick={() => setFavorite((current) => !current)}
+          onClick={saveBookmark}
         >
           <img src={favorite ? pawFilledIcon : pawIcon} alt="" />
         </PawButton>
@@ -231,6 +271,57 @@ export default function VolunteerDetail() {
       </ActionBar>
     </Screen>
   );
+}
+
+function toVolunteerView(data) {
+  const start = data.volunteer?.activityStartAt;
+  const end = data.volunteer?.activityEndAt;
+  const region = [data.shelter?.region?.sido, data.shelter?.region?.sigungu].filter(Boolean).join(" ");
+  const requirements = data.volunteer?.conditions?.requirements;
+  return {
+    id: data.postingId,
+    category: "봉사",
+    postedAt: formatPosted(data.createdAt),
+    title: data.title ?? "",
+    shelterId: data.shelter?.shelterId,
+    shelterName: data.shelter?.name ?? "",
+    time: formatClockRange(start, end),
+    date: formatDay(start),
+    level: data.volunteer?.conditions?.beginnerFriendly ? "초보자 참여 가능" : "참여 조건 확인",
+    recruit: data.volunteer?.capacity != null ? `모집 ${data.volunteer.capacity}명` : "",
+    remain: data.volunteer?.remainingCount != null ? `잔여 ${data.volunteer.remainingCount}명` : "",
+    activity: data.description ?? "",
+    supplies: requirements || "담당자 안내를 확인해 주세요.",
+    cautions: requirements ? [requirements] : ["보호시설의 안내를 따라 주세요."],
+    address: data.shelter?.address || region,
+  };
+}
+
+function formatPosted(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value ?? "";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day} ${hours}:${minutes}`;
+}
+
+function formatDay(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const week = ["일", "월", "화", "수", "목", "금", "토"][date.getDay()];
+  return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()} (${week})`;
+}
+
+function formatClockRange(start, end) {
+  const startDate = new Date(start);
+  if (Number.isNaN(startDate.getTime())) return "";
+  const clock = (date) =>
+    `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  const endDate = new Date(end);
+  if (Number.isNaN(endDate.getTime())) return clock(startDate);
+  return `${clock(startDate)}~${clock(endDate)}`;
 }
 
 const Screen = styled.div`
