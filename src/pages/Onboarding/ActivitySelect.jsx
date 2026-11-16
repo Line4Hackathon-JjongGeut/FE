@@ -8,12 +8,7 @@ import RadioGroup from "../../components/onboarding/RadioGroup.jsx";
 import ExperienceCard from "../../components/onboarding/ExperienceCard.jsx";
 import { getPreferences, updatePreferences } from "../../dummyData/onboarding/preferences.js";
 import { toggleItem } from "../../utils/toggleItem.js";
-
-const EXPERIENCE_LEVELS = [
-  { id: "none", label: "처음이에요" },
-  { id: "few", label: "1~3회" },
-  { id: "many", label: "4회 이상" },
-];
+import { EXPERIENCE_LEVELS } from "../../dummyData/onboarding/preferenceOptions.js";
 
 /* 관심 활동 선택 화면 */
 export default function ActivitySelect() {
@@ -33,7 +28,6 @@ export default function ActivitySelect() {
     navigate("/onboarding/complete");
   }
 
-  /* 경험 작성 화면에 갔다 와도 고른 값이 남아 있도록 먼저 저장하고 이동 */
   function openExperienceForm() {
     saveSelections();
     navigate("/onboarding/experience");

@@ -1,14 +1,20 @@
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { getPreferences } from "../../dummyData/onboarding/preferences.js";
+import { startDraft } from "../../dummyData/mypage/preferenceDraft.js";
 import { formatPreferenceSummary } from "../../utils/preferenceSummary.js";
 import filterIcon from "../../assets/icons/home/icon-filter.svg";
 import catImage from "../../assets/images/onboarding/animal-cat.svg";
 
-/* "내 참여 조건" 박스. 누르면 온보딩으로 가서 조건을 다시 설정 */
+/* "내 참여 조건" 박스. 조건이 있으면 마이페이지 추천 조건 수정으로, 없으면 온보딩으로 */
 export default function PreferenceSummary() {
   const navigate = useNavigate();
   const summary = formatPreferenceSummary(getPreferences());
+
+  function openPreferenceEdit() {
+    startDraft();
+    navigate("/mypage/preferences");
+  }
 
   if (!summary) {
     return (
@@ -24,7 +30,7 @@ export default function PreferenceSummary() {
   }
 
   return (
-    <Box type="button" aria-label="내 참여 조건 다시 설정하기" onClick={() => navigate("/onboarding")}>
+    <Box type="button" aria-label="내 참여 조건 수정하기" onClick={openPreferenceEdit}>
       <Text>
         <Label>내 참여 조건</Label>
         <Summary>{summary}</Summary>
