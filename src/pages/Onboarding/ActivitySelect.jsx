@@ -7,12 +7,14 @@ import ActivityTypeChips from "../../components/onboarding/ActivityTypeChips.jsx
 import RadioGroup from "../../components/onboarding/RadioGroup.jsx";
 import ExperienceCard from "../../components/onboarding/ExperienceCard.jsx";
 import { getPreferences, updatePreferences } from "../../dummyData/onboarding/preferences.js";
+import { useGoBack } from "../../hooks/useGoBack.js";
 import { toggleItem } from "../../utils/toggleItem.js";
 import { EXPERIENCE_LEVELS } from "../../dummyData/onboarding/preferenceOptions.js";
 
 /* 관심 활동 선택 화면 */
 export default function ActivitySelect() {
   const navigate = useNavigate();
+  const goBack = useGoBack();
   const [activityTypes, setActivityTypes] = useState(() => getPreferences().activityTypes);
   const [experienceLevel, setExperienceLevel] = useState(() => getPreferences().experienceLevel);
   const hasExperience = getPreferences().experience !== null;
@@ -37,7 +39,7 @@ export default function ActivitySelect() {
     <OnboardingStep
       step={4}
       title={"어떤 봉사 활동에\n관심 있나요?"}
-      onPrev={() => navigate("/onboarding/schedule")}
+      onPrev={() => goBack("/onboarding/schedule")}
       onNext={handleNext}
       nextLabel="입력 완료"
       nextDisabled={!canNext}

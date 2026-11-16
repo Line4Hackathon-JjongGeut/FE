@@ -12,11 +12,13 @@ import {
 } from "../../dummyData/onboarding/preferences.js";
 
 import { toggleItem } from "../../utils/toggleItem.js";
+import { useGoBack } from "../../hooks/useGoBack.js";
 import { TIME_SLOTS, FREQUENCIES } from "../../dummyData/onboarding/preferenceOptions.js";
 
 /* 활동 일정 설정 화면 */
 export default function ScheduleSelect() {
   const navigate = useNavigate();
+  const goBack = useGoBack(); 
   const [days, setDays] = useState(() => getPreferences().days);
   const [timeSlots, setTimeSlots] = useState(() => getPreferences().timeSlots);
   const [frequency, setFrequency] = useState(() => getPreferences().frequency);
@@ -33,7 +35,7 @@ export default function ScheduleSelect() {
       step={3}
       title="언제 활동할 수 있나요?"
       description="가능한 요일과 시간대를 모두 골라주세요."
-      onPrev={() => navigate("/onboarding/region")}
+      onPrev={() => goBack("/onboarding/region")}
       onNext={handleNext}
       nextDisabled={!canNext}
     >
