@@ -48,6 +48,9 @@ import Recommendations from "../src/pages/Home/Recommendations.jsx";
 import UrgentList from "../src/pages/Home/UrgentList.jsx";
 import PreferenceEdit from "../src/pages/MyPage/PreferenceEdit.jsx";
 
+// 없는 주소
+import NotFound from "../src/pages/NotFound/NotFound.jsx";
+
 function App() {
   return (
     <BrowserRouter>
@@ -117,6 +120,9 @@ function App() {
           <Route path="/activities" element={<Activities />} />
           <Route path="/mypage" element={<MyPage />} />
         </Route>
+
+        {/* 위에 없는 주소는 전부 404 화면으로 */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   );
