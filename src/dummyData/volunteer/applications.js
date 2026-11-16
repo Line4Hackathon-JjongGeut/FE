@@ -15,39 +15,73 @@ const STATUS_COPY = {
   },
 };
 
+const SHARED = {
+  title: "유기견 주말 돌봄 봉사",
+  shelter: "아이조아 요양보호소 서울용산본점",
+  schedule: "11/08(일) 10:00 ~ 13:00",
+  place: "서울 용산구 보호 시설",
+  detailSchedule: "2026.11.08 (일) 10:00-13:00",
+  postId: 1,
+  shelterId: "yongsan",
+  applicant: "이현승",
+  supplies: "편한 복장과 운동화를 착용해 주세요.\n활동 전 보호시설의 안내를 확인해 주세요.",
+  category: "봉사",
+  inHistory: true,
+  onCalendar: false,
+  favorite: true,
+};
+
 let applications = [
   {
+    ...SHARED,
     id: "seed-wait",
     status: "승인 대기",
-    title: "유기견 주말 돌봄 봉사",
-    shelter: "아이조아 요양보호소 서울용산본점",
-    schedule: "11/08(일) 10:00 ~ 13:00",
-    place: "서울 용산구 보호시설",
-    appliedAt: "2026. 11. 06",
-    applicant: "이현승",
-    supplies: "편한 복장과 운동화를 착용해 주세요.\n활동 전 보호시설의 안내를 확인해 주세요.",
+    appliedAt: "2026.11.06",
+    activityDate: "2026-11-14",
+    onCalendar: true,
+    favorite: false,
   },
   {
+    ...SHARED,
+    id: "seed-upcoming",
+    status: "승인 대기",
+    appliedAt: "2026. 11. 10",
+    activityDate: "2026-11-21",
+    onCalendar: true,
+    inHistory: false,
+    favorite: false,
+  },
+  {
+    ...SHARED,
     id: "seed-planned",
     status: "참여 예정",
-    title: "유기견 주말 돌봄 봉사",
-    shelter: "아이조아 요양보호소 서울용산본점",
-    schedule: "11/08(일) 10:00 ~ 13:00",
-    place: "서울 용산구 보호시설",
     appliedAt: "2026. 11. 02",
-    applicant: "이현승",
-    supplies: "편한 복장과 운동화를 착용해 주세요.\n활동 전 보호시설의 안내를 확인해 주세요.",
   },
   {
-    id: "seed-done",
+    ...SHARED,
+    id: "seed-done-1",
     status: "참여 완료",
-    title: "유기견 주말 돌봄 봉사",
-    shelter: "아이조아 요양보호소 서울용산본점",
-    schedule: "11/08(일) 10:00 ~ 13:00",
-    place: "서울 용산구 보호시설",
     appliedAt: "2026. 10. 20",
-    applicant: "이현승",
-    supplies: "편한 복장과 운동화를 착용해 주세요.\n활동 전 보호시설의 안내를 확인해 주세요.",
+  },
+  {
+    ...SHARED,
+    id: "seed-done-2",
+    status: "참여 완료",
+    appliedAt: "2026. 10. 12",
+  },
+  {
+    ...SHARED,
+    id: "seed-done-3",
+    status: "참여 완료",
+    appliedAt: "2026.09.28",
+  },
+  {
+    ...SHARED,
+    id: "seed-rejected",
+    status: "신청 반려",
+    appliedAt: "2026.11.06",
+    favorite: false,
+    reason: "모집 인원이 마감되었어요.",
   },
 ];
 
@@ -70,10 +104,21 @@ export function addApplication(data) {
     status: "승인 대기",
     appliedAt: "2026. 11. 09",
     supplies: "편한 복장과 운동화를 착용해 주세요.\n활동 전 보호시설의 안내를 확인해 주세요.",
+    category: "봉사",
+    inHistory: true,
+    onCalendar: false,
+    favorite: false,
     ...data,
   };
   applications = [item, ...applications];
   return item;
+}
+
+/* 발바닥을 누르면 저장 목록에 넣거나 뺍니다. */
+export function toggleFavorite(id) {
+  applications = applications.map((item) =>
+    item.id === id ? { ...item, favorite: !item.favorite } : item,
+  );
 }
 
 export function removeApplication(id) {

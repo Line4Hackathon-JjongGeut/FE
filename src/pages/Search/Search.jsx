@@ -135,7 +135,11 @@ export default function Search() {
             {results.length > 0 ? (
               <ResultList>
                 {results.map((item) => (
-                  <ResultCard key={item.id}>
+                  <ResultCard
+                    key={item.id}
+                    type="button"
+                    onClick={() => navigate(`/shelters/volunteer/${item.id}`)}
+                  >
                     <Photo>
                       <PhotoPaw src={photoPawIcon} alt="" />
                       <PhotoLabel>시설 사진</PhotoLabel>
@@ -375,14 +379,18 @@ const ResultList = styled.div`
   margin-top: 14px;
 `;
 
-const ResultCard = styled.article`
+/* 카드 전체를 누르면 봉사 공고 상세로 이동합니다. */
+const ResultCard = styled.button`
   display: flex;
   gap: 14px;
+  width: 100%;
   min-height: 129px;
   padding: 9px;
   border: 1px solid #efe8dc;
   border-radius: 18px;
   background-color: #ffffff;
+  text-align: left;
+  cursor: pointer;
 `;
 
 const Photo = styled.div`

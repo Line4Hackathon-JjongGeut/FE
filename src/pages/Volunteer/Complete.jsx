@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import catIcon from "../../assets/icons/volunteer/cat-badge.svg";
-import catCircleIcon from "../../assets/icons/volunteer/cat.svg";
+import catIcon from "../../assets/icons/volunteer/apply/cat.svg";
+import checkIcon from "../../assets/icons/volunteer/apply/done-check.svg";
 
 /* 접수 신청을 마친 뒤 보여 주는 완료 화면입니다. */
 export default function Complete() {
@@ -11,20 +11,21 @@ export default function Complete() {
     <Screen>
       <Center>
         <Mascot>
-          <img src={catIcon} alt="" />
-          <Circle src={catCircleIcon} alt="" />
+          <Cat src={catIcon} alt="" />
+          {/* 고양이가 앉아 있는 연초록 동그라미와 체크입니다. */}
+          <Check src={checkIcon} alt="" />
         </Mascot>
         <Title>접수가 신청됐어요!</Title>
         <Text>
           보호시설이 신청 내용을 확인한 뒤
           <br />
-          승인 결과를 알려드릴게요
+          승인 결과를 알려 드릴게요.
         </Text>
       </Center>
 
       <Actions>
         <Primary type="button" onClick={() => navigate("/activities")}>
-          문의 내역 보기
+          봉사 내역 보기
         </Primary>
         <HomeLink type="button" onClick={() => navigate("/")}>
           홈으로 돌아가기
@@ -57,7 +58,14 @@ const Mascot = styled.div`
   align-items: center;
 `;
 
-const Circle = styled.img`
+const Cat = styled.img`
+  width: 57px;
+  height: 72px;
+`;
+
+const Check = styled.img`
+  width: 51px;
+  height: 51px;
   margin-top: -22px;
 `;
 
@@ -78,9 +86,10 @@ const Text = styled.p`
 `;
 
 const Actions = styled.div`
-  padding: 0 24px 36px;
+  padding: 0 19px 36px;
 `;
 
+/* 화면 아래쪽의 가로로 긴 분홍색 둥근 사각형 버튼입니다. */
 const Primary = styled.button`
   width: 100%;
   height: 44px;
