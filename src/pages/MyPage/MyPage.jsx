@@ -4,7 +4,8 @@ import styled from "styled-components";
 import BackHeader from "../../components/auth/BackHeader.jsx";
 import ProfileCard from "../../components/mypage/ProfileCard.jsx";
 import MenuList from "../../components/mypage/MenuList.jsx";
-import { USER } from "../../dummyData/mypage/userDummy.js";
+import { getUser } from "../../dummyData/mypage/userDummy.js";
+import { startDraft } from "../../dummyData/mypage/preferenceDraft.js";
 import applyIcon from "../../assets/icons/mypage/icon-apply.svg";
 import doneIcon from "../../assets/icons/mypage/icon-done.svg";
 import interestIcon from "../../assets/icons/mypage/icon-interest.svg";
@@ -19,11 +20,17 @@ export default function MyPage() {
   const navigate = useNavigate();
   const [toast, setToast] = useState("");
   const toastTimer = useRef(null);
+    const user = getUser();
 
   function showComingSoon() {
     clearTimeout(toastTimer.current);
     setToast("준비 중인 기능이에요.");
     toastTimer.current = setTimeout(() => setToast(""), TOAST_DURATION);
+  }
+
+  function openPreferenceEdit() {
+    startDraft();
+    navigate("/mypage/preferences");
   }
 
   const activityMenus = [
@@ -42,7 +49,7 @@ export default function MyPage() {
 
   const settingMenus = [
     { icon: profileIcon, label: "프로필 수정", onClick: showComingSoon },
-    { icon: conditionIcon, label: "추천 조건 수정", onClick: () => navigate("/mypage/preferences") },
+    { icon: conditionIcon, label: "추천 조건 수정", onClick: openPreferenceEdit },
     { icon: accountIcon, label: "계정 관리", onClick: showComingSoon },
   ];
 
@@ -51,7 +58,7 @@ export default function MyPage() {
       <BackHeader title="마이페이지" />
 
       <Body>
-        <ProfileCard name={USER.name} type={USER.type} onEdit={showComingSoon} />
+        <ProfileCard name={user.name} type={user.type} onEdit={showComingSoon} />
 
         <Group>
           <GroupTitle>내 활동</GroupTitle>

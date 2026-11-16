@@ -28,7 +28,6 @@ export default function ActivitySelect() {
     navigate("/onboarding/complete");
   }
 
-  /* 경험 작성 화면에 갔다 와도 고른 값이 남아 있도록 먼저 저장하고 이동 */
   function openExperienceForm() {
     saveSelections();
     navigate("/onboarding/experience");
