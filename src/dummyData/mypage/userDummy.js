@@ -3,7 +3,6 @@
 let user = {
   name: "혜림",
   type: "일반 사용자",
-  phone: "",
 };
 
 export function getUser() {

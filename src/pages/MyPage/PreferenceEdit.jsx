@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import BackHeader from "../../components/auth/BackHeader.jsx";
-import TextInput from "../../components/auth/TextInput.jsx";
 import PrimaryButton from "../../components/auth/PrimaryButton.jsx";
 import Section from "../../components/onboarding/Section.jsx";
 import DaySelector from "../../components/onboarding/DaySelector.jsx";
@@ -23,7 +22,6 @@ import {
 import { TIME_SLOTS, FREQUENCIES, EXPERIENCE_LEVELS } from "../../dummyData/onboarding/preferenceOptions.js";
 import { CURRENT_LOCATION } from "../../dummyData/onboarding/regionDummy.js";
 import { toggleItem } from "../../utils/toggleItem.js";
-import { formatPhone, isValidPhone } from "../../utils/formatPhone.js";
 import dogIcon from "../../assets/icons/mypage/animal-dog.svg";
 import catIcon from "../../assets/icons/mypage/animal-cat.svg";
 import pawIcon from "../../assets/icons/mypage/animal-paw.svg";
@@ -46,8 +44,7 @@ export default function PreferenceEdit() {
     setForm(updateDraft(data));
   }
 
-  const phoneError = form.phone !== "" && !isValidPhone(form.phone);
-  const canSave = form.animal !== null && form.region !== null && isValidPhone(form.phone) && form.days.length > 0;
+  const canSave = form.animal !== null && form.region !== null && form.days.length > 0;
 
   function handleSave() {
     saveDraft();
@@ -106,20 +103,6 @@ export default function PreferenceEdit() {
           >
             현재 위치로 찾기
           </LocateButton>
-        </Section>
-
-        <Divider />
-
-        <Section label="연락처" required>
-          <InputRow>
-            <TextInput
-              type="tel"
-              value={form.phone}
-              onChange={(event) => change({ phone: formatPhone(event.target.value) })}
-              placeholder="010-1234-5678"
-            />
-          </InputRow>
-          {phoneError && <ErrorText>010-1234-5678 형식으로 입력해 주세요.</ErrorText>}
         </Section>
 
         <Divider />
@@ -266,17 +249,6 @@ const LocateButton = styled.button`
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-`;
-
-const InputRow = styled.div`
-  display: flex;
-`;
-
-const ErrorText = styled.p`
-  margin-top: -3px;
-  color: #d9534f;
-  font-size: 11px;
-  font-weight: 600;
 `;
 
 const TimeGrid = styled.div`

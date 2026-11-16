@@ -2,13 +2,12 @@
    지역 검색·경험 작성 화면에 다녀와도 고친 값이 남아 있도록 화면 밖에 보관
    저장하기를 눌러야 진짜 저장소에 반영되고, 나가면 버림 */
 import { getPreferences, updatePreferences } from "../onboarding/preferences.js";
-import { getUser, updateUser } from "./userDummy.js";
 
 let original = null;
 let draft = null;
 
 export function startDraft() {
-  original = { ...getPreferences(), phone: getUser().phone };
+  original = { ...getPreferences() };
   draft = original;
   return draft;
 }
@@ -27,9 +26,7 @@ export function isDraftChanged() {
 }
 
 export function saveDraft() {
-  const { phone, ...preferences } = getDraft();
-  updatePreferences(preferences);
-  updateUser({ phone });
+  updatePreferences(getDraft());
   discardDraft();
 }
 
