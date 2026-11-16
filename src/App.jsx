@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import RootLayout from "../src/layout/RootLayout.jsx";
+import ScrollToTop from "../src/components/common/ScrollToTop.jsx";
 
 // 메인 페이지
 import Home from "../src/pages/Home/Home.jsx";
@@ -50,6 +51,8 @@ import PreferenceEdit from "../src/pages/MyPage/PreferenceEdit.jsx";
 function App() {
   return (
     <BrowserRouter>
+      {/* 화면을 옮길 때마다 스크롤을 맨 위로 */}
+      <ScrollToTop />
       <Routes>
         {/* 검색 */}
         <Route path="/search" element={<Search />} />
