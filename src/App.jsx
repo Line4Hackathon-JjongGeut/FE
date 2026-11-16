@@ -97,7 +97,6 @@ function App() {
         <Route path="/recommendations" element={<Recommendations />} />
         <Route path="/urgent" element={<UrgentList />} />
         <Route path="/mypage/preferences" element={<PreferenceEdit />} />
-        <Route path="/mypage/preferences" element={<PreferenceEdit />} />
         <Route
           path="/mypage/preferences/region"
           element={<RegionSelect mode="edit" />}
