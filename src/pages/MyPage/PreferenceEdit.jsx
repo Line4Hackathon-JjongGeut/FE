@@ -12,7 +12,14 @@ import ActivityTypeChips from "../../components/onboarding/ActivityTypeChips.jsx
 import RadioGroup from "../../components/onboarding/RadioGroup.jsx";
 import ExperienceCard from "../../components/onboarding/ExperienceCard.jsx";
 import AnimalChip from "../../components/mypage/AnimalChip.jsx";
-import { getDraft, updateDraft, saveDraft } from "../../dummyData/mypage/preferenceDraft.js";
+import ConfirmModal from "../../components/mypage/ConfirmModal.jsx";
+import {
+  getDraft,
+  updateDraft,
+  saveDraft,
+  discardDraft,
+  isDraftChanged,
+} from "../../dummyData/mypage/preferenceDraft.js";
 import { TIME_SLOTS, FREQUENCIES, EXPERIENCE_LEVELS } from "../../dummyData/onboarding/preferenceOptions.js";
 import { CURRENT_LOCATION } from "../../dummyData/onboarding/regionDummy.js";
 import { toggleItem } from "../../utils/toggleItem.js";
@@ -33,6 +40,7 @@ export default function PreferenceEdit() {
   const navigate = useNavigate();
   // 고치는 값은 화면 state와 임시 사본(draft)에 같이 넣어 둠
   const [form, setForm] = useState(() => getDraft());
+  const [leaveOpen, setLeaveOpen] = useState(false);
 
   function change(data) {
     setForm(updateDraft(data));
@@ -46,10 +54,24 @@ export default function PreferenceEdit() {
     // 저장 후 뒤로 가기를 눌러도 수정 화면으로 돌아오지 않도록 replace
     navigate("/mypage", { replace: true });
   }
+  /* 고친 게 있으면 확인 창, 없으면 바로 나감 */
+  function handleBack() {
+    if (isDraftChanged()) {
+      setLeaveOpen(true);
+      return;
+    }
+    leave();
+  }
+
+  /* 고치던 사본을 버리고 들어오기 전 화면으로 */
+  function leave() {
+    discardDraft();
+    navigate(-1);
+  }
 
   return (
     <Screen>
-      <BackHeader title="추천 조건 수정" onBack={() => navigate(-1)} />
+      <BackHeader title="추천 조건 수정" onBack={handleBack} />
 
       <Body>
         <Section label="관심 동물" required>
@@ -163,6 +185,14 @@ export default function PreferenceEdit() {
           저장하기
         </PrimaryButton>
       </Actions>
+      {leaveOpen && (
+        <ConfirmModal
+          title="작성을 중단할까요?"
+          description={"지금 중단하면\n수정 사항이 저장되지 않아요."}
+          onConfirm={leave}
+          onCancel={() => setLeaveOpen(false)}
+        />
+      )}
     </Screen>
   );
 }
