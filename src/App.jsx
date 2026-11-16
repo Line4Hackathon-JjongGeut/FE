@@ -24,6 +24,7 @@ import ExperienceForm from "../src/pages/Onboarding/ExperienceForm.jsx";
 import OnboardingComplete from "../src/pages/Onboarding/OnboardingComplete.jsx";
 import Recommendations from "../src/pages/Home/Recommendations.jsx";
 import UrgentList from "../src/pages/Home/UrgentList.jsx";
+import PreferenceEdit from "../src/pages/MyPage/PreferenceEdit.jsx";
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
         <Route path="/onboarding/complete" element={<OnboardingComplete />} />
         <Route path="/recommendations" element={<Recommendations />} />
         <Route path="/urgent" element={<UrgentList />} />
+        <Route path="/mypage/preferences" element={<PreferenceEdit />} />
         <Route element={<RootLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/map" element={<Map />} />
