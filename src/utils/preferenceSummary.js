@@ -31,5 +31,7 @@ export function formatPreferenceSummary(preferences) {
   const activityText =
     activityTypes.length > 1 ? `${activityTypes[0]} 외 ${activityTypes.length - 1}개` : activityTypes[0];
 
-  return [area, `${dayText} ${timeText}`, activityText, EXPERIENCE_LABELS[experienceLevel]].join(" · ");
+  return [area, `${dayText} ${timeText}`.trim(), activityText, EXPERIENCE_LABELS[experienceLevel]]
+    .filter(Boolean)
+    .join(" · ");
 }
