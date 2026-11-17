@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import searchIcon from "../../assets/icons/search/search.svg";
@@ -7,17 +7,59 @@ import chevronIcon from "../../assets/icons/search/chevron.svg";
 import clearIcon from "../../assets/icons/search/clear.svg";
 import photoPawIcon from "../../assets/icons/search/photo-paw.svg";
 import clockIcon from "../../assets/icons/search/clock.svg";
+import { getPostings } from "../../api/postings.js";
 import { FILTERS, FILTER_COLORS } from "../../dummyData/map/mapDummy.js";
 import { RECOMMENDED_SEARCHES, SEARCH_RESULTS } from "../../dummyData/search/searchDummy.js";
 
 /* Enter로 검색한 단어만 기억합니다. 화면을 나갔다 들어와도 유지됩니다. */
 let searchedTerms = [];
 
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+/* 화면 필터를 모집공고 검색의 postingType으로 바꿉니다. */
+const TYPE_QUERY = {
+  봉사: "VOLUNTEER",
+  후원: "DONATION",
+  임시보호: "FOSTER",
+};
+
+const TYPE_LABEL = {
+  VOLUNTEER: "봉사",
+  DONATION: "후원",
+  FOSTER: "임시보호",
+  봉사: "봉사",
+  후원: "후원",
+  임시보호: "임시보호",
+};
+
 export default function Search() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("전체");
   const [recent, setRecent] = useState(searchedTerms);
+  /* null이면 검색 API를 아직 못 받은 상태라 임시 결과를 보여 줍니다. */
+  const [apiResults, setApiResults] = useState(null);
+
+  /* 검색어가 있으면 모집 중인 공고를 가져옵니다. 실패하면 임시 결과를 유지합니다. */
+  useEffect(() => {
+    const keyword = query.trim();
+    if (!keyword) return undefined;
+    let ignore = false;
+    getPostings({
+      keyword,
+      postingType: TYPE_QUERY[filter],
+      page: 0,
+      size: 20,
+    })
+      .then((result) => {
+        if (ignore || !result?.isSuccess || !result.data) return;
+        setApiResults((result.data.items ?? []).map(toSearchResult));
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [query, filter]);
 
   function remember(text) {
     const value = text.trim();
@@ -30,7 +72,7 @@ export default function Search() {
   }
 
   const keyword = query.trim();
-  const results = SEARCH_RESULTS.filter((item) => {
+  const dummyResults = SEARCH_RESULTS.filter((item) => {
     const text = [item.title, item.shelter, item.region, item.area, item.category, ...item.keywords]
       .join(" ")
       .toLowerCase();
@@ -38,6 +80,22 @@ export default function Search() {
     const matchesFilter = filter === "전체" || item.category === filter;
     return matchesQuery && matchesFilter;
   });
+  const results = (apiResults ?? dummyResults).filter(
+    (item) => filter !== "즐겨찾기" || item.bookmarked || item.category === "즐겨찾기",
+  );
+
+  function openResult(item) {
+    const type = String(item.postingType ?? item.category ?? "");
+    if (type === "후원" || type.toUpperCase().includes("DONATION")) {
+      navigate(`/donations/${item.id}`);
+      return;
+    }
+    if (type === "임시보호" || type.toUpperCase().includes("FOSTER")) {
+      navigate(`/fosters/${item.id}`);
+      return;
+    }
+    navigate(`/shelters/volunteer/${item.id}`);
+  }
 
   function searchFor(text) {
     setQuery(text);
@@ -62,6 +120,7 @@ export default function Search() {
             placeholder="지역, 보호시설, 봉사 활동 검색"
             onChange={(event) => {
               setQuery(event.target.value);
+              setApiResults(null);
               setFilter("전체");
             }}
             onKeyDown={(event) => {
@@ -69,7 +128,10 @@ export default function Search() {
             }}
           />
           {keyword && (
-            <ClearButton type="button" aria-label="검색어 지우기" onClick={() => setQuery("")}>
+            <ClearButton type="button" aria-label="검색어 지우기" onClick={() => {
+              setQuery("");
+              setApiResults(null);
+            }}>
               <ClearIcon src={clearIcon} alt="" />
             </ClearButton>
           )}
@@ -123,7 +185,10 @@ export default function Search() {
                   type="button"
                   $active={filter === name}
                   $color={FILTER_COLORS[name]}
-                  onClick={() => setFilter(name)}
+                  onClick={() => {
+                    setApiResults(null);
+                    setFilter(name);
+                  }}
                 >
                   {name}
                 </FilterChip>
@@ -135,7 +200,11 @@ export default function Search() {
             {results.length > 0 ? (
               <ResultList>
                 {results.map((item) => (
-                  <ResultCard key={item.id}>
+                  <ResultCard
+                    key={item.id}
+                    type="button"
+                    onClick={() => openResult(item)}
+                  >
                     <Photo>
                       <PhotoPaw src={photoPawIcon} alt="" />
                       <PhotoLabel>시설 사진</PhotoLabel>
@@ -169,6 +238,30 @@ export default function Search() {
       </Body>
     </Screen>
   );
+}
+
+function toSearchResult(item) {
+  const type = TYPE_LABEL[item.postingType] ?? item.postingType ?? "";
+  return {
+    id: item.postingId,
+    postingType: item.postingType,
+    category: type,
+    badge: item.beginnerFriendly ? "초보 가능" : item.urgent ? "긴급" : type,
+    title: item.title,
+    shelter: item.shelter?.name ?? "",
+    region: item.shelter?.region?.sigungu ?? item.shelter?.region?.sido ?? "",
+    time: formatStart(item.activityStartAt),
+    bookmarked: Boolean(item.bookmarked),
+  };
+}
+
+function formatStart(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${date.getMonth() + 1}/${date.getDate()}(${WEEKDAYS[date.getDay()]}) ${hours}:${minutes}`;
 }
 
 const Screen = styled.div`
@@ -375,14 +468,18 @@ const ResultList = styled.div`
   margin-top: 14px;
 `;
 
-const ResultCard = styled.article`
+/* 카드 전체를 누르면 봉사 공고 상세로 이동합니다. */
+const ResultCard = styled.button`
   display: flex;
   gap: 14px;
+  width: 100%;
   min-height: 129px;
   padding: 9px;
   border: 1px solid #efe8dc;
   border-radius: 18px;
   background-color: #ffffff;
+  text-align: left;
+  cursor: pointer;
 `;
 
 const Photo = styled.div`

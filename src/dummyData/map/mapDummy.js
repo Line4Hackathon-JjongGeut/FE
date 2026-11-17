@@ -3,6 +3,7 @@ export const FILTERS = ["전체", "봉사", "후원", "임시보호", "즐겨찾
 
 /* 필터를 눌렀을 때 칩에 채워지는 색입니다. */
 export const FILTER_COLORS = {
+  전체: "#382f2f",
   봉사: "#3e7556",
   후원: "#c47b3b",
   임시보호: "#f2a60c",
@@ -37,7 +38,7 @@ export const PLACES = [
     category: "후원",
     shelter,
     shelterId: "yongsan",
-    title: "착한 고양이입니다. 임시보호자 분을 찾습니다!",
+    title: "겨울나기 난방용품 후원 모집",
     info: "3개월 · 수컷 · 중성화 예정",
     photos: [{ image: true }, { label: "동물 사진" }, { label: "시설 사진" }],
   },
@@ -55,7 +56,7 @@ export const PLACES = [
     category: "임시보호",
     shelter,
     shelterId: "yongsan",
-    title: "착한 고양이입니다. 임시보호자 분을 찾습니다!",
+    title: "임시보호 가정 모집 (고양이 모모)",
     info: "3개월 · 수컷 · 중성화 예정",
     photos: [{ image: true }, { label: "동물 사진" }, { label: "시설 사진" }],
   },

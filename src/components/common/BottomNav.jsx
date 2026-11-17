@@ -14,7 +14,7 @@ const NAV_ITEMS = [
   { to: "/map", label: "지도", icon: mapIcon, activeIcon: mapActiveIcon },
   {
     to: "/activities",
-    label: "참여내역",
+    label: "활동",
     icon: activitiesIcon,
     activeIcon: activitiesActiveIcon,
   },

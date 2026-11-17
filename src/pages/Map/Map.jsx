@@ -1,5 +1,6 @@
+
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import styled from "styled-components";
 import searchIcon from "../../assets/icons/map/search.svg";
 import checkIcon from "../../assets/icons/map/check.svg";
@@ -12,15 +13,25 @@ import pawFilledIcon from "../../assets/icons/map/paw-filled.svg";
 import animalInfoIcon from "../../assets/icons/map/animal-info.svg";
 import shelterPhoto from "../../assets/icons/map/shelter-photo.png";
 import { FILTERS, FILTER_COLORS, PLACES } from "../../dummyData/map/mapDummy.js";
+import { deleteShelterBookmark, getShelters, postShelterBookmark } from "../../api/shelters.js";
 
 const NAV_HEIGHT = 90;
+
+// 카드 종류에 맞는 상세 페이지로 이동합니다.
+function postPath(place) {
+  if (place.category === "후원") return `/donations/${place.id}`;
+  if (place.category === "임시보호") return `/fosters/${place.id}`;
+  return `/shelters/volunteer/${place.id}`;
+}
 
 export default function Map() {
   const navigate = useNavigate();
   const { setHideNav } = useOutletContext();
-  const [filter, setFilter] = useState(null);
+  const location = useLocation();
+  const [filter, setFilter] = useState(location.state?.filter ?? null);
   const [expanded, setExpanded] = useState(false);
   const [favorites, setFavorites] = useState(() => new Set());
+  const [shelters, setShelters] = useState(null);
   const dragStartY = useRef(null);
   const filterTimer = useRef(null);
 
@@ -31,6 +42,22 @@ export default function Map() {
   }, [expanded, setHideNav]);
 
   useEffect(() => () => clearTimeout(filterTimer.current), []);
+
+  // 보호시설 API가 실패하면 기존 임시 데이터를 대신 사용합니다.
+  useEffect(() => {
+    let ignore = false;
+
+    getShelters()
+      .then((result) => {
+        if (ignore || !result?.isSuccess) return;
+        setShelters(result.data?.items ?? []);
+      })
+      .catch(() => {});
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   /* 같은 필터를 다시 누르면 내려가고, 다른 필터를 누르면 내려간 뒤 새 카드가 올라옵니다. */
   function selectFilter(name) {
@@ -51,21 +78,77 @@ export default function Map() {
     setFilter(name);
   }
 
-  function toggleFavorite(id) {
+  function toggleFavorite(place) {
+    // API에서 불러온 보호시설만 서버 북마크를 변경합니다.
+    if (place.fromShelterList) {
+      toggleShelterBookmark(place);
+      return;
+    }
+
     setFavorites((current) => {
       const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(place.id)) next.delete(place.id);
+      else next.add(place.id);
       return next;
     });
   }
 
-  const places = PLACES.filter((place) => {
-    return (
-      !filter ||
-      filter === "전체" ||
-      (filter === "즐겨찾기" ? favorites.has(place.id) : place.category === filter)
-    );
+  async function toggleShelterBookmark(place) {
+    const shelterId = place.shelterId;
+    const saved = Boolean(place.bookmarked);
+
+    try {
+      if (saved) await deleteShelterBookmark(shelterId);
+      else await postShelterBookmark(shelterId);
+
+      setShelters((current) =>
+        current?.map((item) =>
+          item.shelterId === shelterId
+            ? { ...item, bookmarked: !saved }
+            : item,
+        ) ?? current,
+      );
+    } catch (error) {
+      // 이미 저장/해제된 항목이면 서버 상태에 맞춰 동기화합니다.
+      if (error?.status !== 409 && error?.status !== 404) return;
+      setShelters((current) =>
+        current?.map((item) =>
+          item.shelterId === shelterId
+            ? { ...item, bookmarked: error.status === 409 }
+            : item,
+        ) ?? current,
+      );
+    }
+  }
+
+  const shelterPlaces = (shelters ?? []).map((item) => ({
+    id: item.shelterId,
+    shelterId: item.shelterId,
+    title: item.name,
+    shelter: [item.region?.sido, item.region?.sigungu].filter(Boolean).join(" "),
+    address: item.address,
+    bookmarked: item.bookmarked,
+    fromShelterList: true,
+    photos: [
+      { label: "시설 사진" },
+      { label: "시설 사진" },
+      { label: "시설 사진" },
+    ],
+  }));
+
+  const showShelters =
+    shelters !== null &&
+    (filter === null || filter === "전체" || filter === "즐겨찾기");
+  const source = showShelters ? shelterPlaces : PLACES;
+
+  const places = source.filter((place) => {
+    if (!filter || filter === "전체") return true;
+    if (filter === "즐겨찾기") {
+      return place.fromShelterList
+        ? Boolean(place.bookmarked)
+        : favorites.has(place.id);
+    }
+    return place.category === filter;
   });
 
   /* 손잡이를 위로 밀면 열리고, 아래로 밀면 닫힙니다. 거의 움직이지 않고 누르면 열림과 닫힘이 바뀝니다. */
@@ -152,9 +235,9 @@ export default function Map() {
               <PlaceCard
                 key={place.id}
                 place={place}
-                favorite={favorites.has(place.id)}
+                favorite={place.fromShelterList ? Boolean(place.bookmarked) : favorites.has(place.id)}
                 onToggleFavorite={toggleFavorite}
-                onOpenPost={() => navigate(`/shelters/volunteer/${place.id}`)}
+                onOpenPost={() => navigate(place.fromShelterList ? `/shelters/${place.shelterId}` : postPath(place))}
                 onOpenShelter={() => navigate(`/shelters/${place.shelterId}`)}
               />
             ))
@@ -195,7 +278,7 @@ function PlaceCard({ place, favorite, onToggleFavorite, onOpenPost, onOpenShelte
           aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기"}
           onClick={(event) => {
             event.stopPropagation();
-            onToggleFavorite(place.id);
+            onToggleFavorite(place);
           }}
         >
           <Icon src={favorite ? pawFilledIcon : pawIcon} alt="" />
@@ -213,16 +296,18 @@ function PlaceCard({ place, favorite, onToggleFavorite, onOpenPost, onOpenShelte
             <Icon src={pinIcon} alt="" />
             {place.address}
           </Meta>
-          <Meta>
-            <Icon src={calendarIcon} alt="" />
-            {place.time}
-          </Meta>
+          {place.time && (
+            <Meta>
+              <Icon src={calendarIcon} alt="" />
+              {place.time}
+            </Meta>
+          )}
         </>
       )}
 
       {/* 첫 칸은 보호소 사진, 나머지는 사진이 생기기 전의 자리 표시 */}
       <Photos>
-        {place.photos.map((photo, index) =>
+        {(place.photos ?? []).map((photo, index) =>
           photo.image ? (
             <PhotoImage key={`${place.id}-${index}`} src={shelterPhoto} alt="행복한동물보호소" />
           ) : (

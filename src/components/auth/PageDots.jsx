@@ -1,15 +1,16 @@
 import styled from "styled-components";
 
-/* 소개 화면 아래 ● ○ ○ 표시 */
-export default function PageDots({ total, current, onSelect }) {
+/* ● ○ ○ 페이지 표시 */
+export default function PageDots({ total, current, onSelect, size = 10, gap = 12 }) {
   return (
-    <Dots>
+    <Dots $gap={gap}>
       {Array.from({ length: total }, (_, index) => (
         <Dot
           key={index}
           type="button"
-          aria-label={`${index + 1}번째 소개 보기`}
+          aria-label={`${index + 1}번째 페이지 보기`}
           $active={index === current}
+          $size={size}
           onClick={() => onSelect(index)}
         />
       ))}
@@ -19,12 +20,12 @@ export default function PageDots({ total, current, onSelect }) {
 
 const Dots = styled.div`
   display: flex;
-  gap: 12px;
+  gap: ${({ $gap }) => $gap}px;
 `;
 
 const Dot = styled.button`
-  width: 10px;
-  height: 10px;
+  width: ${({ $size }) => $size}px;
+  height: ${({ $size }) => $size}px;
   padding: 0;
   border: 0;
   border-radius: 50%;
