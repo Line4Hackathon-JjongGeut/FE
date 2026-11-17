@@ -8,8 +8,7 @@ import CheckButton from "../../components/auth/CheckButton.jsx";
 import PrimaryButton from "../../components/auth/PrimaryButton.jsx";
 import TextLink from "../../components/auth/TextLink.jsx";
 import { isNicknameTaken, isUserIdTaken } from "../../dummyData/auth/authDummy.js";
-
-const PASSWORD_MIN_LENGTH = 8;
+import { SIGNUP_RULES, isValidField } from "../../utils/signupValidation.js";
 
 /* 중복 확인 결과에 따라 보여 줄 문구 */
 const CHECK_MESSAGES = {
@@ -23,8 +22,6 @@ const CHECK_MESSAGES = {
   },
 };
 
-/* 일반 사용자 회원정보 입력 화면
-   닉네임·아이디 중복 확인을 통과하고 비밀번호가 8자 이상이어야 가입 버튼이 눌립니다. */
 export default function SignupForm() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", nickname: "", userId: "", password: "" });
@@ -45,22 +42,29 @@ export default function SignupForm() {
     setChecks((current) => ({ ...current, [key]: taken ? "taken" : "available" }));
   }
 
-  function getCheckHint(key) {
+  function isInvalid(key) {
+    return form[key] !== "" && !isValidField(key, form[key]);
+  }
+
+  /* 칸 아래 안내 문구: 규칙 위반 → 중복 확인 결과 순서로 보여 줌 */
+  function getFieldHint(key) {
+    if (isInvalid(key)) return { hint: SIGNUP_RULES[key].message, hintTone: "error" };
+
     const status = checks[key];
-    if (status === "idle") return { hint: undefined, hintTone: "default" };
+    if (!status || status === "idle") return { hint: undefined, hintTone: "default" };
     return {
       hint: CHECK_MESSAGES[key][status],
       hintTone: status === "available" ? "success" : "error",
     };
   }
 
-  const isPasswordShort = form.password.length > 0 && form.password.length < PASSWORD_MIN_LENGTH;
-
   const canSubmit =
-    form.name.trim() !== "" &&
+    isValidField("name", form.name) &&
+    isValidField("nickname", form.nickname) &&
+    isValidField("userId", form.userId) &&
+    isValidField("password", form.password) &&
     checks.nickname === "available" &&
-    checks.userId === "available" &&
-    form.password.length >= PASSWORD_MIN_LENGTH;
+    checks.userId === "available";
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -79,33 +83,51 @@ export default function SignupForm() {
           <Headline>회원정보를 입력해 주세요.</Headline>
 
           <Fields>
-            <FormField label="이름" required>
-              <TextInput value={form.name} onChange={(event) => updateField("name", event.target.value)} />
+            <FormField label="이름" required {...getFieldHint("name")}>
+              <TextInput
+                value={form.name}
+                onChange={(event) => updateField("name", event.target.value)}
+                autoComplete="name"
+              />
             </FormField>
 
-            <FormField label="닉네임" required {...getCheckHint("nickname")}>
+            <FormField label="닉네임" required {...getFieldHint("nickname")}>
               <TextInput
                 value={form.nickname}
                 onChange={(event) => updateField("nickname", event.target.value)}
+                autoComplete="nickname"
               />
-              <CheckButton disabled={form.nickname.trim() === ""} onClick={() => checkDuplicate("nickname")} />
+              {/* 규칙에 맞게 입력해야 중복 확인을 할 수 있음 */}
+              <CheckButton
+                disabled={!isValidField("nickname", form.nickname)}
+                onClick={() => checkDuplicate("nickname")}
+              />
             </FormField>
 
-            <FormField label="아이디" required {...getCheckHint("userId")}>
-              <TextInput value={form.userId} onChange={(event) => updateField("userId", event.target.value)} />
-              <CheckButton disabled={form.userId.trim() === ""} onClick={() => checkDuplicate("userId")} />
+            <FormField label="아이디" required {...getFieldHint("userId")}>
+              <TextInput
+                value={form.userId}
+                // 아이디는 소문자만 쓸 수 있어서, 대문자로 쳐도 소문자로 바꿔 줌
+                onChange={(event) => updateField("userId", event.target.value.toLowerCase())}
+                autoComplete="username"
+              />
+              <CheckButton
+                disabled={!isValidField("userId", form.userId)}
+                onClick={() => checkDuplicate("userId")}
+              />
             </FormField>
 
             <FormField
               label="비밀번호"
               required
-              hint="비밀번호는 8자 이상이어야 합니다."
-              hintTone={isPasswordShort ? "error" : "default"}
+              hint={SIGNUP_RULES.password.message}
+              hintTone={isInvalid("password") ? "error" : "default"}
             >
               <TextInput
                 type="password"
                 value={form.password}
                 onChange={(event) => updateField("password", event.target.value)}
+                autoComplete="new-password"
               />
             </FormField>
           </Fields>
