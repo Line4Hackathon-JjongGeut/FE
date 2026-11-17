@@ -9,6 +9,8 @@
     TODO: 환경변수 상의하여 결정하고 노션에 적어놓기, 보통 v1까지 환경변수로 설정 함
  */
 
+import { getAccessToken } from "../utils/tokenStorage.js";
+
 /*
   서버 주소입니다.
   VITE_API_BASE_URL에는 /api/v1 까지 넣고, 도메인 파일은 그 뒤 경로만 넘깁니다.
@@ -24,11 +26,14 @@ const baseURL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
   실패하면 status에 HTTP 코드를 담아 던집니다. 409(이미 저장), 404(없는 저장)를 화면에서 구분할 때 씁니다.
 */
 async function request(method, path, body) {
+  const accessToken = getAccessToken();
   const response = await fetch(`${baseURL}${path}`, {
     method,
     headers: {
       Accept: "application/json",
       ...(body ? { "Content-Type": "application/json" } : {}),
+      // 로그인했으면 모든 요청에 토큰을 붙임. 로그인, 회원가입처럼 로그인 전 요청은 토큰 없이 감
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
