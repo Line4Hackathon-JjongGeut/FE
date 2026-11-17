@@ -14,6 +14,9 @@ import animalInfoIcon from "../../assets/icons/map/animal-info.svg";
 import shelterPhoto from "../../assets/icons/map/shelter-photo.png";
 import { FILTERS, FILTER_COLORS, PLACES } from "../../dummyData/map/mapDummy.js";
 import { deleteShelterBookmark, getShelters, postShelterBookmark } from "../../api/shelters.js";
+import { loadKakaoMap } from "../../lib/kakaoMap.js";
+
+const SEOUL = { lat: 37.5665, lng: 126.978 };
 
 const NAV_HEIGHT = 90;
 
@@ -34,6 +37,11 @@ export default function Map() {
   const [shelters, setShelters] = useState(null);
   const dragStartY = useRef(null);
   const filterTimer = useRef(null);
+  const mapElementRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef([]);
+  const closeRef = useRef(() => {});
+  const [mapReady, setMapReady] = useState(false);
 
   /* 시트가 열려 있는 동안 하단 메뉴를 숨기고, 페이지를 떠나면 다시 보여 줍니다. */
   useEffect(() => {
@@ -42,6 +50,75 @@ export default function Map() {
   }, [expanded, setHideNav]);
 
   useEffect(() => () => clearTimeout(filterTimer.current), []);
+
+  /* 빈 지도 자리에 카카오 지도를 올립니다. 스크립트가 거절되면 빈 배경을 유지합니다. */
+  useEffect(() => {
+    let ignore = false;
+
+    loadKakaoMap()
+      .then((kakao) => {
+        if (ignore || !mapElementRef.current || mapRef.current) return;
+        const map = new kakao.maps.Map(mapElementRef.current, {
+          center: new kakao.maps.LatLng(SEOUL.lat, SEOUL.lng),
+          level: 8,
+        });
+        mapRef.current = map;
+        kakao.maps.event.addListener(map, "click", () => closeRef.current());
+        requestAnimationFrame(() => map.relayout());
+        setMapReady(true);
+      })
+      .catch(() => {});
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const markerKey = (shelters ?? [])
+    .map((item) => `${Number(item.latitude)},${Number(item.longitude)}`)
+    .join("|");
+
+  /* 보호시설 좌표가 있으면 마커를 찍고, 없으면 서울을 중심으로 둡니다. */
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !window.kakao?.maps) return undefined;
+    const kakao = window.kakao;
+    const map = mapRef.current;
+    markersRef.current.forEach((marker) => marker.setMap(null));
+
+    const points = markerKey
+      .split("|")
+      .filter(Boolean)
+      .map((pair) => {
+        const [lat, lng] = pair.split(",").map(Number);
+        return { lat, lng };
+      })
+      .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+
+    if (!points.length) {
+      markersRef.current = [];
+      map.setCenter(new kakao.maps.LatLng(SEOUL.lat, SEOUL.lng));
+      map.setLevel(8);
+      return undefined;
+    }
+
+    const bounds = new kakao.maps.LatLngBounds();
+    markersRef.current = points.map((point) => {
+      const position = new kakao.maps.LatLng(point.lat, point.lng);
+      bounds.extend(position);
+      const marker = new kakao.maps.Marker({ position });
+      marker.setMap(map);
+      return marker;
+    });
+
+    if (points.length === 1) {
+      map.setCenter(new kakao.maps.LatLng(points[0].lat, points[0].lng));
+      map.setLevel(5);
+      return undefined;
+    }
+
+    map.setBounds(bounds);
+    return undefined;
+  }, [mapReady, markerKey]);
 
   // 보호시설 API가 실패하면 기존 임시 데이터를 대신 사용합니다.
   useEffect(() => {
@@ -174,10 +251,12 @@ export default function Map() {
     setFilter(null);
   }
 
+  closeRef.current = closeFromBackground;
+
   return (
     <Screen>
-      {/* 지도 API가 붙기 전, 피그마의 빈 지도 배경만 보여 주는 영역 */}
-      <MapArea aria-label="지도 영역" onClick={closeFromBackground} />
+      {/* 카카오 지도. 불러오지 못하면 뒤의 빈 배경이 그대로 보입니다. */}
+      <MapArea ref={mapElementRef} aria-label="지도 영역" onClick={closeFromBackground} />
 
       <Top onClick={(event) => event.target === event.currentTarget && closeFromBackground()}>
         {/* 지역, 보호 시설 이름 검색 */}
