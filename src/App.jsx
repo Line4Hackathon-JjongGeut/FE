@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import RootLayout from "../src/layout/RootLayout.jsx";
 import ScrollToTop from "../src/components/common/ScrollToTop.jsx";
+import ProtectedRoute from "../src/components/common/ProtectedRoute.jsx";
+import GuestRoute from "../src/components/common/GuestRoute.jsx";
 
 // 메인 페이지
 import Home from "../src/pages/Home/Home.jsx";
@@ -57,68 +59,73 @@ function App() {
       {/* 화면을 옮길 때마다 스크롤을 맨 위로 */}
       <ScrollToTop />
       <Routes>
-        {/* 검색 */}
-        <Route path="/search" element={<Search />} />
-
-        {/* 보호시설 */}
-        <Route
-          path="/shelters/volunteer/:postId"
-          element={<VolunteerDetail />}
-        />
-        <Route path="/shelters/:shelterId" element={<ShelterDetail />} />
-
-        {/* 후원 (내 코드) */}
-        <Route path="/donations/:postId" element={<DonationDetail />} />
-
-        {/* 임시보호 (내 코드) */}
-        <Route path="/fosters/:postId/apply" element={<FosterApply />} />
-        <Route path="/fosters/:postId/complete" element={<FosterComplete />} />
-        <Route path="/fosters/:postId" element={<FosterDetail />} />
-
-        {/* 봉사활동 */}
-        <Route path="/volunteer/apply/:postId" element={<Apply />} />
-        <Route path="/volunteer/complete" element={<Complete />} />
-        <Route path="/activities/:activityId" element={<ActivityDetail />} />
-
-        {/* 로그인 및 회원가입 */}
-        <Route path="/intro" element={<Intro />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<SignupType />} />
-        <Route path="/signup/form" element={<SignupForm />} />
+        {/* 로그인 및 회원가입: 로그인 전에만 볼 수 있음 (로그인했으면 홈으로) */}
+        <Route element={<GuestRoute />}>
+          <Route path="/intro" element={<Intro />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignupType />} />
+          <Route path="/signup/form" element={<SignupForm />} />
+        </Route>
         <Route path="/signup/complete" element={<SignupComplete />} />
 
-        {/* 온보딩 (팀원 코드) */}
-        <Route path="/onboarding" element={<AnimalSelect />} />
-        <Route path="/onboarding/region" element={<RegionSelect />} />
-        <Route path="/onboarding/region/map" element={<RegionMap />} />
-        <Route path="/onboarding/schedule" element={<ScheduleSelect />} />
-        <Route path="/onboarding/activity" element={<ActivitySelect />} />
-        <Route path="/onboarding/experience" element={<ExperienceForm />} />
-        <Route path="/onboarding/complete" element={<OnboardingComplete />} />
+        {/* 여기부터는 로그인해야 볼 수 있음 (토큰 없으면 소개 화면으로) */}
+        <Route element={<ProtectedRoute />}>
+          {/* 검색 */}
+          <Route path="/search" element={<Search />} />
 
-        {/* 홈 추가 페이지 (팀원 코드) */}
-        <Route path="/recommendations" element={<Recommendations />} />
-        <Route path="/urgent" element={<UrgentList />} />
-        <Route path="/mypage/preferences" element={<PreferenceEdit />} />
-        <Route
-          path="/mypage/preferences/region"
-          element={<RegionSelect mode="edit" />}
-        />
-        <Route
-          path="/mypage/preferences/region/map"
-          element={<RegionMap mode="edit" />}
-        />
-        <Route
-          path="/mypage/preferences/experience"
-          element={<ExperienceForm mode="edit" />}
-        />
+          {/* 보호시설 */}
+          <Route
+            path="/shelters/volunteer/:postId"
+            element={<VolunteerDetail />}
+          />
+          <Route path="/shelters/:shelterId" element={<ShelterDetail />} />
 
-        {/* 공통 레이아웃이 적용되는 페이지 */}
-        <Route element={<RootLayout />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/map" element={<Map />} />
-          <Route path="/activities" element={<Activities />} />
-          <Route path="/mypage" element={<MyPage />} />
+          {/* 후원 (내 코드) */}
+          <Route path="/donations/:postId" element={<DonationDetail />} />
+
+          {/* 임시보호 (내 코드) */}
+          <Route path="/fosters/:postId/apply" element={<FosterApply />} />
+          <Route path="/fosters/:postId/complete" element={<FosterComplete />} />
+          <Route path="/fosters/:postId" element={<FosterDetail />} />
+
+          {/* 봉사활동 */}
+          <Route path="/volunteer/apply/:postId" element={<Apply />} />
+          <Route path="/volunteer/complete" element={<Complete />} />
+          <Route path="/activities/:activityId" element={<ActivityDetail />} />
+
+          {/* 온보딩 (팀원 코드) */}
+          <Route path="/onboarding" element={<AnimalSelect />} />
+          <Route path="/onboarding/region" element={<RegionSelect />} />
+          <Route path="/onboarding/region/map" element={<RegionMap />} />
+          <Route path="/onboarding/schedule" element={<ScheduleSelect />} />
+          <Route path="/onboarding/activity" element={<ActivitySelect />} />
+          <Route path="/onboarding/experience" element={<ExperienceForm />} />
+          <Route path="/onboarding/complete" element={<OnboardingComplete />} />
+
+          {/* 홈 추가 페이지 (팀원 코드) */}
+          <Route path="/recommendations" element={<Recommendations />} />
+          <Route path="/urgent" element={<UrgentList />} />
+          <Route path="/mypage/preferences" element={<PreferenceEdit />} />
+          <Route
+            path="/mypage/preferences/region"
+            element={<RegionSelect mode="edit" />}
+          />
+          <Route
+            path="/mypage/preferences/region/map"
+            element={<RegionMap mode="edit" />}
+          />
+          <Route
+            path="/mypage/preferences/experience"
+            element={<ExperienceForm mode="edit" />}
+          />
+
+          {/* 공통 레이아웃이 적용되는 페이지 */}
+          <Route element={<RootLayout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/map" element={<Map />} />
+            <Route path="/activities" element={<Activities />} />
+            <Route path="/mypage" element={<MyPage />} />
+          </Route>
         </Route>
 
         {/* 위에 없는 주소는 전부 404 화면으로 */}

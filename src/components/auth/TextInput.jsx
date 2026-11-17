@@ -1,8 +1,10 @@
 import styled from "styled-components";
 
 /* 회원가입·로그인에서 쓰는 기본 입력창 */
-export default function TextInput({ type = "text", value, onChange, placeholder }) {
-  return <Input type={type} value={value} onChange={onChange} placeholder={placeholder} />;
+export default function TextInput({ type = "text", value, onChange, placeholder, autoComplete }) {
+  return (
+    <Input type={type} value={value} onChange={onChange} placeholder={placeholder} autoComplete={autoComplete} />
+  );
 }
 
 const Input = styled.input`
