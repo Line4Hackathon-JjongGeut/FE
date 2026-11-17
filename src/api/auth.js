@@ -7,3 +7,11 @@ import { APIService } from "./api.js";
 export function login({ loginId, password }) {
   return APIService.public.post("/auth/login", { loginId, password });
 }
+
+/*
+  로그아웃.
+  서버에 남아 있는 로그인 세션 만료시킴
+*/
+export function logout() {
+  return APIService.public.post("/auth/logout");
+}

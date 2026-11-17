@@ -7,7 +7,7 @@ export default function ProfileCard({ name, type, onEdit }) {
     <Card>
       <Avatar aria-hidden />
       <Text>
-        <Name>{name} 님</Name>
+        <Name>{name ? `${name} 님` : ""}</Name>
         <Type>{type}</Type>
       </Text>
       <EditButton type="button" onClick={onEdit}>
@@ -45,12 +45,14 @@ const Text = styled.div`
 `;
 
 const Name = styled.p`
+  min-height: 26px;
   color: #000000;
   font-size: 22px;
   font-weight: 700;
 `;
 
 const Type = styled.p`
+  min-height: 17px;
   color: #858585;
   font-size: 14px;
   font-weight: 600;
