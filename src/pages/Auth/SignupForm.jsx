@@ -9,6 +9,8 @@ import PrimaryButton from "../../components/auth/PrimaryButton.jsx";
 import TextLink from "../../components/auth/TextLink.jsx";
 import { isNicknameTaken, isUserIdTaken } from "../../dummyData/auth/authDummy.js";
 import { SIGNUP_RULES, isValidField } from "../../utils/signupValidation.js";
+import { signup, login } from "../../api/auth.js";
+import { saveTokens } from "../../utils/tokenStorage.js";
 
 /* 중복 확인 결과에 따라 보여 줄 문구 */
 const CHECK_MESSAGES = {
@@ -21,15 +23,25 @@ const CHECK_MESSAGES = {
     taken: "이미 사용 중인 아이디예요.",
   },
 };
+/* 가입 실패 이유에 따라 보여 줄 문구 */
+function getSignupErrorMessage(error) {
+  if (error.status === undefined) return "서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.";
+  if (error.status === 409) return "이미 사용 중인 아이디 또는 닉네임이에요.";
+  if (error.status === 400) return "입력한 정보를 다시 확인해 주세요.";
+  return "회원가입에 실패했어요. 잠시 후 다시 시도해 주세요.";
+}
 
 export default function SignupForm() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", nickname: "", userId: "", password: "" });
   // 중복 확인 상태: "idle"(아직 안 함), "available"(사용 가능), "taken"(사용 중)
   const [checks, setChecks] = useState({ nickname: "idle", userId: "idle" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   function updateField(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
+    setSubmitError("");
     // 확인을 받은 뒤 값을 바꾸면 다시 확인받아야 합니다.
     if (key in checks) {
       setChecks((current) => ({ ...current, [key]: "idle" }));
@@ -64,14 +76,37 @@ export default function SignupForm() {
     isValidField("userId", form.userId) &&
     isValidField("password", form.password) &&
     checks.nickname === "available" &&
-    checks.userId === "available";
+    checks.userId === "available" &&
+    !isSubmitting;
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     if (!canSubmit) return;
 
-    // TODO: 회원가입 API 생기면 form과 사용자 유형을 함께 보냄.
-    navigate("/signup/complete", { replace: true });
+    setIsSubmitting(true);
+    setSubmitError("");
+    const account = {
+      loginId: form.userId,
+      name: form.name,
+      nickname: form.nickname,
+      password: form.password,
+    };
+
+    try {
+      await signup(account);
+    } catch (error) {
+      setSubmitError(getSignupErrorMessage(error));
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const response = await login({ loginId: account.loginId, password: account.password });
+      saveTokens(response.data);
+      navigate("/signup/complete", { replace: true });
+    } catch {
+      navigate("/login", { replace: true });
+    }
   }
 
   return (
@@ -134,8 +169,9 @@ export default function SignupForm() {
         </Body>
 
         <Actions>
+          {submitError && <SubmitError role="alert">{submitError}</SubmitError>}
           <PrimaryButton type="submit" disabled={!canSubmit}>
-            회원가입
+            {isSubmitting ? "가입하는 중..." : "회원가입"}
           </PrimaryButton>
           <BottomLink>
             <TextLink onClick={() => navigate("/intro")}>처음으로 돌아가기</TextLink>
@@ -179,6 +215,14 @@ const Fields = styled.div`
 
 const Actions = styled.div`
   padding: 40px 24px 36px;
+`;
+
+const SubmitError = styled.p`
+  margin-bottom: 12px;
+  color: #d9534f;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
 `;
 
 const BottomLink = styled.div`

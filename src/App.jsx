@@ -66,10 +66,11 @@ function App() {
           <Route path="/signup" element={<SignupType />} />
           <Route path="/signup/form" element={<SignupForm />} />
         </Route>
-        <Route path="/signup/complete" element={<SignupComplete />} />
 
         {/* 여기부터는 로그인해야 볼 수 있음 (토큰 없으면 소개 화면으로) */}
         <Route element={<ProtectedRoute />}>
+          {/* 회원가입 완료: 가입 직후 자동 로그인된 상태에서 보는 화면 */}
+          <Route path="/signup/complete" element={<SignupComplete />} />
           {/* 검색 */}
           <Route path="/search" element={<Search />} />
 
@@ -85,7 +86,10 @@ function App() {
 
           {/* 임시보호 (내 코드) */}
           <Route path="/fosters/:postId/apply" element={<FosterApply />} />
-          <Route path="/fosters/:postId/complete" element={<FosterComplete />} />
+          <Route
+            path="/fosters/:postId/complete"
+            element={<FosterComplete />}
+          />
           <Route path="/fosters/:postId" element={<FosterDetail />} />
 
           {/* 봉사활동 */}
