@@ -2,15 +2,18 @@ import styled from "styled-components";
 
 /* 주소 검색 결과 한 줄 */
 export default function AddressItem({ address, selected, onClick }) {
+  const title = address.name ?? address.road;
+  const subText = address.name ? address.road : address.jibun;
+
   return (
     <Item type="button" onClick={onClick}>
       <Radio $selected={selected} />
       <Text>
         <TitleRow>
-          <Road>{address.road}</Road>
+          <Road>{title}</Road>
           {selected && <Badge>현재 설정된 주소</Badge>}
         </TitleRow>
-        <Jibun>{address.jibun}</Jibun>
+        {subText && <Jibun>{subText}</Jibun>}
       </Text>
     </Item>
   );

@@ -6,6 +6,7 @@ import FormField from "../../components/auth/FormField.jsx";
 import TextInput from "../../components/auth/TextInput.jsx";
 import PrimaryButton from "../../components/auth/PrimaryButton.jsx";
 import { login } from "../../api/auth.js";
+import { getMyProfile } from "../../api/profile.js";
 import { saveTokens } from "../../utils/tokenStorage.js";
 
 /* 실패 이유에 따라 보여 줄 문구 */
@@ -16,6 +17,16 @@ function getLoginErrorMessage(error) {
   if (error.status >= 500) return "일시적인 오류가 생겼어요. 잠시 후 다시 시도해 주세요.";
   // 그 밖(아이디 없음, 비밀번호 틀림 등)은 보안상 어느 쪽이 틀렸는지 구분하지 않음
   return "아이디 또는 비밀번호를 확인해 주세요.";
+}
+
+/* 온보딩을 끝냈는지 서버에 확인 */
+async function isOnboardingDone() {
+  try {
+    const result = await getMyProfile();
+    return result.data?.onboardingCompleted !== false;
+  } catch {
+    return true;
+  }
 }
 
 /* 로그인 화면. 아이디와 비밀번호를 모두 입력해야 버튼 눌림 */
@@ -38,7 +49,7 @@ export default function Login() {
       const response = await login({ loginId: loginId.trim(), password });
       saveTokens(response.data);
       // 로그인 뒤 뒤로가기를 눌러도 로그인 화면이 다시 나오지 않도록 replace
-      navigate("/", { replace: true });
+      navigate((await isOnboardingDone()) ? "/" : "/onboarding", { replace: true });
     } catch (error) {
       setErrorMessage(getLoginErrorMessage(error));
       setIsLoading(false);

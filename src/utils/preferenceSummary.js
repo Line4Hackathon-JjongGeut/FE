@@ -20,7 +20,7 @@ export function formatPreferenceSummary(preferences) {
   if (!region || !experienceLevel) return null;
 
   // "서울 성북구 정릉로 77" → "서울 성북구"
-  const area = region.road.split(" ").slice(0, 2).join(" ");
+  const area = region.area ?? region.road.split(" ").slice(0, 2).join(" ");
 
   // 요일은 월~일 순서로 정렬하고, 하나면 "일요일", 여러 개면 "토·일"
   const sortedDays = [...days].sort((a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b));

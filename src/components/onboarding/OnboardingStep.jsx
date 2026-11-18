@@ -84,7 +84,12 @@ const Actions = styled.div`
   grid-auto-columns: 1fr;
   grid-auto-flow: column;
   gap: 11px;
-  padding: 40px 24px 36px;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: 24px;
+  padding: 16px 24px 36px;
+  background-color: #ffffff;
 `;
 
 const PrevButton = styled.button`

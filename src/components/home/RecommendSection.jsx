@@ -6,9 +6,8 @@ import RecommendCard from "./RecommendCard.jsx";
 import RecommendEmpty from "./RecommendEmpty.jsx";
 import PageDots from "../auth/PageDots.jsx";
 import { RECOMMENDED_POSTS } from "../../dummyData/home/homeDummy.js";
-import { getPreferences } from "../../dummyData/onboarding/preferences.js";
 import { chunk } from "../../utils/chunk.js";
-import { formatPreferenceSummary } from "../../utils/preferenceSummary.js";
+import { useMyPreferences } from "../../hooks/useMyPreferences.js";
 import sparkleIcon from "../../assets/icons/home/icon-sparkle.svg";
 
 const CARDS_PER_PAGE = 2;
@@ -19,7 +18,8 @@ export default function RecommendSection() {
   const navigate = useNavigate();
   const trackRef = useRef(null);
   const [page, setPage] = useState(0);
-  const hasPreferences = formatPreferenceSummary(getPreferences()) !== null;
+  const { status, summary } = useMyPreferences();
+  const hasPreferences = summary !== null;
   const pages = chunk(
     RECOMMENDED_POSTS.slice(0, HOME_RECOMMEND_COUNT),
     CARDS_PER_PAGE,
@@ -42,7 +42,8 @@ export default function RecommendSection() {
         linkLabel="전체보기"
         onLinkClick={() => navigate("/recommendations")}
       />
-      {hasPreferences ? (
+      {/* 참여 조건을 불러오기 전에는 카드도 빈 화면 안내도 보여 주지 않음 */}
+      {status !== "ready" ? null : hasPreferences ? (
         <>
           <Track ref={trackRef} onScroll={handleScroll}>
             {pages.map((cards, index) => (

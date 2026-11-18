@@ -1,19 +1,38 @@
-/* "추천 조건 수정" 화면에서 고치는 중인 값 (임시 사본)
-   지역 검색·경험 작성 화면에 다녀와도 고친 값이 남아 있도록 화면 밖에 보관
-   저장하기를 눌러야 진짜 저장소에 반영되고, 나가면 버림 */
-import { getPreferences, updatePreferences } from "../onboarding/preferences.js";
+const EMPTY = {
+  animal: null,
+  region: null,
+  days: [],
+  timeSlots: [],
+  frequency: null,
+  activityTypes: [],
+  experienceLevel: null,
+  experience: null,
+};
 
 let original = null;
 let draft = null;
 
 export function startDraft() {
-  original = { ...getPreferences() };
-  draft = original;
+  original = null;
+  draft = null;
+}
+
+export function hasDraft() {
+  return draft !== null;
+}
+
+export function loadDraft(preferences) {
+  original = preferences;
+  draft = preferences;
   return draft;
 }
 
 export function getDraft() {
-  return draft ?? startDraft();
+  return draft ?? EMPTY;
+}
+
+export function getOriginal() {
+  return original ?? EMPTY;
 }
 
 export function updateDraft(data) {
@@ -22,12 +41,7 @@ export function updateDraft(data) {
 }
 
 export function isDraftChanged() {
-  return JSON.stringify(getDraft()) !== JSON.stringify(original);
-}
-
-export function saveDraft() {
-  updatePreferences(getDraft());
-  discardDraft();
+  return JSON.stringify(getDraft()) !== JSON.stringify(getOriginal());
 }
 
 export function discardDraft() {

@@ -16,7 +16,7 @@ export function loadKakaoMap() {
   if (!loading) {
     loading = new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = `${SDK_URL}?appkey=${encodeURIComponent(appkey)}&autoload=false`;
+      script.src = `${SDK_URL}?appkey=${encodeURIComponent(appkey)}&autoload=false&libraries=services`;
       script.async = true;
       script.onload = () => {
         if (!window.kakao?.maps?.load) {
