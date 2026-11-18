@@ -28,3 +28,10 @@ export function updateMyProfile(profile) {
 export function createVolunteerExperience(experience) {
   return APIService.public.post("/users/me/volunteer-experiences", experience);
 }
+
+/* 
+  봉사 경험 삭제
+*/
+export function deleteVolunteerExperience(experienceId) {
+  return APIService.public.delete(`/users/me/volunteer-experiences/${experienceId}`);
+}

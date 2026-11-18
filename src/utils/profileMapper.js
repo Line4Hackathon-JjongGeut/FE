@@ -119,3 +119,18 @@ export function toExperienceRequest(experience) {
   if (experience.organization) request.organizationName = experience.organization;
   return request;
 }
+
+export function fromExperienceResponse(item) {
+  if (!item) return null;
+  return {
+    id: item.experienceId,
+    activityTypes: mapList(item.activityCategories, CATEGORY_FROM_API),
+    organization: item.organizationName ?? "",
+    content: item.content ?? "",
+  };
+}
+
+export function isSameExperience(a, b) {
+  const pick = (item) => item && [item.activityTypes, item.organization, item.content];
+  return JSON.stringify(pick(a)) === JSON.stringify(pick(b));
+}

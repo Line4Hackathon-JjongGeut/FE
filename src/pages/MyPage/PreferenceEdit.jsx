@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import BackHeader from "../../components/auth/BackHeader.jsx";
@@ -13,12 +13,29 @@ import ExperienceCard from "../../components/onboarding/ExperienceCard.jsx";
 import AnimalChip from "../../components/mypage/AnimalChip.jsx";
 import ConfirmModal from "../../components/mypage/ConfirmModal.jsx";
 import {
+  hasDraft,
+  loadDraft,
   getDraft,
+  getOriginal,
   updateDraft,
-  saveDraft,
   discardDraft,
   isDraftChanged,
 } from "../../dummyData/mypage/preferenceDraft.js";
+import { updatePreferences } from "../../dummyData/onboarding/preferences.js";
+import {
+  getMyProfile,
+  updateMyProfile,
+  getMyVolunteerExperiences,
+  createVolunteerExperience,
+  deleteVolunteerExperience,
+} from "../../api/profile.js";
+import {
+  fromProfileResponse,
+  fromExperienceResponse,
+  toProfileRequest,
+  toExperienceRequest,
+  isSameExperience,
+} from "../../utils/profileMapper.js";
 import { TIME_SLOTS, FREQUENCIES, EXPERIENCE_LEVELS } from "../../dummyData/onboarding/preferenceOptions.js";
 import { useCurrentAddress } from "../../hooks/useCurrentAddress.js";
 import { toggleItem } from "../../utils/toggleItem.js";
@@ -36,27 +53,78 @@ const ANIMALS = [
 /* 마이페이지 > 추천 조건 수정 */
 export default function PreferenceEdit() {
   const navigate = useNavigate();
-  // 고치는 값은 화면 state와 임시 사본(draft)에 같이 넣어 둠
-  const [form, setForm] = useState(() => getDraft());
+  // 지역 검색·경험 작성 화면에서 돌아왔으면 고치던 사본을 그대로, 처음 들어왔으면 서버에서 불러옴
+  const [form, setForm] = useState(() => (hasDraft() ? getDraft() : null));
+  const [loadState, setLoadState] = useState(() => (hasDraft() ? "ready" : "loading"));
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [leaveOpen, setLeaveOpen] = useState(false);
   const { findCurrentAddress, isLocating, locateError } = useCurrentAddress();
+
+  // 내 추천 프로필과 봉사 경험(가장 최근 것)을 같이 불러와서 사본을 시작
+  useEffect(() => {
+    if (loadState !== "loading") return undefined;
+    let ignore = false;
+    Promise.all([getMyProfile(), getMyVolunteerExperiences()])
+      .then(([profileResult, experienceResult]) => {
+        if (ignore) return;
+        const preferences = {
+          ...fromProfileResponse(profileResult.data),
+          experience: fromExperienceResponse(experienceResult.data?.experiences?.[0]),
+        };
+        setForm(loadDraft(preferences));
+        setLoadState("ready");
+      })
+      .catch(() => {
+        if (!ignore) setLoadState("error");
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [loadState]);
 
   function change(data) {
     setForm(updateDraft(data));
   }
 
-  const canSave = form.animal !== null && form.region !== null && form.days.length > 0;
+  const canSave = form !== null && form.animal !== null && form.region !== null && form.days.length > 0;
 
+  /* 현재 위치를 주소로 바꾼 다음 지도 확인 화면으로 */
   async function handleLocate() {
     const address = await findCurrentAddress();
     if (address) navigate("/mypage/preferences/region/map", { state: { address } });
   }
 
-  function handleSave() {
-    saveDraft();
-    // 저장 후 뒤로 가기를 눌러도 수정 화면으로 돌아오지 않도록 replace
-    navigate("/mypage", { replace: true });
+  async function handleSave() {
+    const draft = getDraft();
+    const before = getOriginal();
+    setIsSaving(true);
+    setSaveError("");
+    try {
+      await updateMyProfile(toProfileRequest(draft));
+
+      // 봉사 경험을 새로 썼으면 새 경험을 저장하고 예전 경험은 지움
+      if (draft.experience && !isSameExperience(draft.experience, before.experience)) {
+        await createVolunteerExperience(toExperienceRequest(draft.experience));
+        // 지우기가 실패해도 새 경험은 이미 저장됐으니 그냥 넘어감
+        if (before.experience?.id) await deleteVolunteerExperience(before.experience.id).catch(() => {});
+      }
+
+      // 홈 요약이 바로 바뀌도록 화면 저장소에도 반영
+      updatePreferences(draft);
+      discardDraft();
+      // 저장 후 뒤로 가기를 눌러도 수정 화면으로 돌아오지 않도록 replace
+      navigate("/mypage", { replace: true });
+    } catch (error) {
+      setSaveError(
+        error.status
+          ? "저장하지 못했어요. 잠시 후 다시 시도해 주세요."
+          : "인터넷 연결을 확인하고 다시 시도해 주세요.",
+      );
+      setIsSaving(false);
+    }
   }
+
   /* 고친 게 있으면 확인 창, 없으면 바로 나감 */
   function handleBack() {
     if (isDraftChanged()) {
@@ -70,6 +138,27 @@ export default function PreferenceEdit() {
   function leave() {
     discardDraft();
     navigate(-1);
+  }
+
+  // 불러오는 중이거나 실패했을 때는 안내 문구만
+  if (loadState !== "ready") {
+    return (
+      <Screen>
+        <BackHeader title="추천 조건 수정" onBack={leave} />
+        <StatusBox>
+          {loadState === "loading" ? (
+            <StatusText>추천 조건을 불러오는 중...</StatusText>
+          ) : (
+            <>
+              <StatusText role="alert">추천 조건을 불러오지 못했어요.</StatusText>
+              <RetryButton type="button" onClick={() => setLoadState("loading")}>
+                다시 시도
+              </RetryButton>
+            </>
+          )}
+        </StatusBox>
+      </Screen>
+    );
   }
 
   return (
@@ -168,8 +257,9 @@ export default function PreferenceEdit() {
       </Body>
 
       <Actions>
-        <PrimaryButton disabled={!canSave} onClick={handleSave}>
-          저장하기
+        {saveError && <SaveError role="alert">{saveError}</SaveError>}
+        <PrimaryButton disabled={!canSave || isSaving} onClick={handleSave}>
+          {isSaving ? "저장 중..." : "저장하기"}
         </PrimaryButton>
       </Actions>
       {leaveOpen && (
@@ -274,4 +364,39 @@ const TimeGrid = styled.div`
 
 const Actions = styled.div`
   padding: 50px 24px 36px;
+`;
+
+const StatusBox = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+`;
+
+const StatusText = styled.p`
+  color: #8a8a8a;
+  font-size: 14px;
+  font-weight: 500;
+`;
+
+const RetryButton = styled.button`
+  height: 40px;
+  padding: 0 20px;
+  border: 1.5px solid #d9d9d9;
+  border-radius: 10px;
+  background-color: #ffffff;
+  color: #2f3833;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+`;
+
+const SaveError = styled.p`
+  margin-bottom: 12px;
+  color: #d9534f;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
 `;
