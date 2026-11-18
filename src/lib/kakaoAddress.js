@@ -91,13 +91,16 @@ export async function findAddressByCoords(latitude, longitude) {
 
   return new Promise((resolve, reject) => {
     geocoder.coord2Address(longitude, latitude, (results, status) => {
-      const address = results?.[0]?.road_address ?? results?.[0]?.address;
-      const region = address && findRegion(address.region_1depth_name, address.region_2depth_name);
-      if (status === kakao.maps.services.Status.OK && region) {
-        resolve({ ...region, jibun: address.address_name, latitude, longitude });
-      } else {
+      const result = results?.[0];
+      const base = result?.road_address ?? result?.address;
+      const region = base && findRegion(base.region_1depth_name, base.region_2depth_name);
+      if (status !== kakao.maps.services.Status.OK || !region) {
         reject(new Error("이 위치의 주소를 찾지 못했어요."));
+        return;
       }
+      const road = result.road_address?.address_name ?? result.address.address_name;
+      const jibun = result.road_address ? (result.address?.address_name ?? "") : "";
+      resolve({ ...region, id: `${road}-${latitude}-${longitude}`, road, jibun, latitude, longitude });
     });
   });
 }

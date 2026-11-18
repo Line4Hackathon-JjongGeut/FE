@@ -62,6 +62,9 @@ export default function RegionSelect({ mode = "onboarding" }) {
     !searchFailed &&
     regions.length === 0 &&
     details.length === 0;
+  const results = [...regions, ...details];
+  // 지금 등록된 주소가 검색 결과에 없으면 맨 위에 따로 보여 줌 
+  const showCurrent = region && !results.some((item) => item.id === region.id);
 
   async function handleLocate() {
     const address = await findCurrentAddress();
@@ -100,10 +103,9 @@ export default function RegionSelect({ mode = "onboarding" }) {
       </Section>
 
       <Results>
-        {/* 검색어가 없으면 이미 등록한 지역만 보여 줌 */}
-        {!keyword && region && <AddressItem address={region} selected onClick={() => openMap(region)} />}
+        {showCurrent && <AddressItem address={region} selected onClick={() => openMap(region)} />}
 
-        {[...regions, ...details].map((address) => (
+        {results.map((address) => (
           <AddressItem
             key={address.id}
             address={address}
