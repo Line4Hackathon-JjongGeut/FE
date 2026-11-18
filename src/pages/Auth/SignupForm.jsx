@@ -7,9 +7,8 @@ import TextInput from "../../components/auth/TextInput.jsx";
 import CheckButton from "../../components/auth/CheckButton.jsx";
 import PrimaryButton from "../../components/auth/PrimaryButton.jsx";
 import TextLink from "../../components/auth/TextLink.jsx";
-import { isNicknameTaken, isUserIdTaken } from "../../dummyData/auth/authDummy.js";
 import { SIGNUP_RULES, isValidField } from "../../utils/signupValidation.js";
-import { signup, login } from "../../api/auth.js";
+import { signup, login, checkLoginIdAvailable, checkNicknameAvailable } from "../../api/auth.js";
 import { saveTokens } from "../../utils/tokenStorage.js";
 
 /* 중복 확인 결과에 따라 보여 줄 문구 */
@@ -17,10 +16,12 @@ const CHECK_MESSAGES = {
   nickname: {
     available: "사용 가능한 닉네임이에요.",
     taken: "이미 사용 중인 닉네임이에요.",
+    failed: "중복 확인에 실패했어요. 다시 눌러 주세요.",
   },
   userId: {
     available: "사용 가능한 아이디예요.",
     taken: "이미 사용 중인 아이디예요.",
+    failed: "중복 확인에 실패했어요. 다시 눌러 주세요.",    
   },
 };
 /* 가입 실패 이유에 따라 보여 줄 문구 */
@@ -34,7 +35,6 @@ function getSignupErrorMessage(error) {
 export default function SignupForm() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", nickname: "", userId: "", password: "" });
-  // 중복 확인 상태: "idle"(아직 안 함), "available"(사용 가능), "taken"(사용 중)
   const [checks, setChecks] = useState({ nickname: "idle", userId: "idle" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -48,10 +48,20 @@ export default function SignupForm() {
     }
   }
 
-  function checkDuplicate(key) {
-    // TODO: 중복 확인 API가 생기면 더미 함수 대신 요청 보내기
-    const taken = key === "nickname" ? isNicknameTaken(form.nickname) : isUserIdTaken(form.userId);
-    setChecks((current) => ({ ...current, [key]: taken ? "taken" : "available" }));
+  async function checkDuplicate(key) {
+    setChecks((current) => ({ ...current, [key]: "checking" }));
+
+    let result;
+    try {
+      const response =
+        key === "nickname" ? await checkNicknameAvailable(form.nickname) : await checkLoginIdAvailable(form.userId);
+      result = response.data.available ? "available" : "taken";
+    } catch {
+      result = "failed";
+    }
+
+    // 기다리는 동안 값을 고쳤으면(상태가 idle로 바뀜) 예전 값의 결과는 버림
+    setChecks((current) => (current[key] === "checking" ? { ...current, [key]: result } : current));
   }
 
   function isInvalid(key) {
@@ -63,7 +73,7 @@ export default function SignupForm() {
     if (isInvalid(key)) return { hint: SIGNUP_RULES[key].message, hintTone: "error" };
 
     const status = checks[key];
-    if (!status || status === "idle") return { hint: undefined, hintTone: "default" };
+    if (!status || status === "idle" || status === "checking") return { hint: undefined, hintTone: "default" };
     return {
       hint: CHECK_MESSAGES[key][status],
       hintTone: status === "available" ? "success" : "error",
@@ -134,9 +144,11 @@ export default function SignupForm() {
               />
               {/* 규칙에 맞게 입력해야 중복 확인을 할 수 있음 */}
               <CheckButton
-                disabled={!isValidField("nickname", form.nickname)}
+                disabled={!isValidField("nickname", form.nickname) || checks.nickname === "checking"}
                 onClick={() => checkDuplicate("nickname")}
-              />
+              >
+                {checks.nickname === "checking" ? "확인 중" : "중복 확인"}
+              </CheckButton>
             </FormField>
 
             <FormField label="아이디" required {...getFieldHint("userId")}>
@@ -147,9 +159,11 @@ export default function SignupForm() {
                 autoComplete="username"
               />
               <CheckButton
-                disabled={!isValidField("userId", form.userId)}
+                disabled={!isValidField("userId", form.userId) || checks.userId === "checking"}
                 onClick={() => checkDuplicate("userId")}
-              />
+              >
+                {checks.userId === "checking" ? "확인 중" : "중복 확인"}
+              </CheckButton>
             </FormField>
 
             <FormField
