@@ -1,22 +1,88 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
-import backButtonIcon from "../../assets/icons/shelters/detail/back-button.svg";
+import backButtonIcon from "../../assets/icons/shelters/detail/back-button-light.svg";
 import dividerIcon from "../../assets/icons/shelters/volunteer/divider.svg";
 import mapPawIcon from "../../assets/icons/shelters/detail/map-paw.svg";
 import pinIcon from "../../assets/icons/shelters/volunteer/pin.svg";
 import pawIcon from "../../assets/icons/shelters/detail/paw.svg";
 import pawFilledIcon from "../../assets/icons/shelters/detail/paw-filled.svg";
 import { findVolunteerPost } from "../../dummyData/shelters/shelterDummy.js";
-import { deletePostingBookmark, getPostingDetail, postPostingBookmark } from "../../api/postings.js";
+import { getPostingDetail } from "../../api/postings.js";
+import { setSavedFavorite } from "../../api/activities.js";
+import { loadKakaoMap } from "../../lib/kakaoMap.js";
+import { findCoordsByAddress } from "../../lib/kakaoAddress.js";
+
+/* 숫자로 된 좌표만 남깁니다. */
+function toCoords(latitude, longitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { latitude: lat, longitude: lng };
+}
+
+/* 근무지역 칸에 해당 좌표의 카카오 지도를 올립니다. 좌표가 없으면 주소로 찾습니다. */
+function LocationMap({ address, latitude, longitude }) {
+  const boxRef = useRef(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const known = toCoords(latitude, longitude);
+    if (!known && !address) {
+      setFailed(true);
+      return undefined;
+    }
+
+    let ignore = false;
+    setFailed(false);
+
+    async function init() {
+      try {
+        const kakao = await loadKakaoMap();
+        const coords = known ?? (await findCoordsByAddress(address));
+        if (ignore || !boxRef.current) return;
+
+        const position = new kakao.maps.LatLng(coords.latitude, coords.longitude);
+        const map = new kakao.maps.Map(boxRef.current, {
+          center: position,
+          level: 3,
+        });
+        map.setDraggable(false);
+        map.setZoomable(false);
+        new kakao.maps.Marker({ position, map });
+        map.relayout();
+        requestAnimationFrame(() => map.relayout());
+      } catch {
+        if (!ignore) setFailed(true);
+      }
+    }
+
+    init();
+    return () => {
+      ignore = true;
+      if (boxRef.current) boxRef.current.innerHTML = "";
+    };
+  }, [address, latitude, longitude]);
+
+  if (failed) {
+    return (
+      <MapPreview>
+        <img src={mapPawIcon} alt="" />
+        <MapLabel>지도 사진</MapLabel>
+      </MapPreview>
+    );
+  }
+
+  return <MapCanvas ref={boxRef} aria-label="근무지역 지도" />;
+}
 
 /* 공고 제목이나 모집 카드를 눌렀을 때 열리는 봉사 공고 상세입니다. */
 export default function VolunteerDetail() {
   const navigate = useNavigate();
   const { postId } = useParams();
-  const saved = findVolunteerPost(postId);
-  const [post, setPost] = useState(saved);
-  const photos = post.photos;
+  const isNumericId = /^\d+$/.test(String(postId ?? ""));
+  const [post, setPost] = useState(() => (isNumericId ? null : findVolunteerPost(postId)));
+  const photos = post?.photos ?? [];
   const [favorite, setFavorite] = useState(false);
   const [savingBookmark, setSavingBookmark] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -28,15 +94,15 @@ export default function VolunteerDetail() {
   const photoIndexRef = useRef(0);
   const [frameWidth, setFrameWidth] = useState(0);
 
-  /* 숫자 공고 번호면 모집공고 상세를 가져옵니다. 실패하면 임시 내용을 유지합니다. */
+  /* 숫자 공고 번호면 모집공고 상세를 가져옵니다. 오기 전에는 임시 공고를 보여 주지 않습니다. */
   useEffect(() => {
     if (!/^\d+$/.test(String(postId ?? ""))) return undefined;
-    setPost(findVolunteerPost(postId));
+    setPost(null);
     let ignore = false;
     getPostingDetail(postId)
       .then((result) => {
         if (ignore || !result?.isSuccess || !result.data) return;
-        setPost((current) => ({ ...current, ...toVolunteerView(result.data), photos: current.photos }));
+        setPost(toVolunteerView(result.data));
         if (typeof result.data.bookmarked === "boolean") setFavorite(result.data.bookmarked);
       })
       .catch(() => {});
@@ -45,18 +111,17 @@ export default function VolunteerDetail() {
     };
   }, [postId]);
 
-  /* 빈 발바닥은 관심 공고 저장, 채워진 발바닥은 관심 공고 해제입니다. */
+  /* 발바닥은 공고와 그 보호시설을 함께 저장하거나 해제합니다. */
   async function saveBookmark() {
     if (savingBookmark) return;
     setSavingBookmark(true);
     try {
-      if (favorite) {
-        await deletePostingBookmark(post.id);
-        setFavorite(false);
-        return;
-      }
-      const result = await postPostingBookmark(post.id);
-      if (result?.data?.bookmarked) setFavorite(true);
+      await setSavedFavorite({
+        shelterId: post.shelterId,
+        postingIds: [post.id],
+        saved: favorite,
+      });
+      setFavorite(!favorite);
     } catch (error) {
       if (error.status === 409) setFavorite(true);
       if (error.status === 404) setFavorite(false);
@@ -74,7 +139,7 @@ export default function VolunteerDetail() {
     const observer = new ResizeObserver(measure);
     observer.observe(frame);
     return () => observer.disconnect();
-  }, []);
+  }, [photos.length]);
 
   function showPhoto(nextIndex) {
     photoIndexRef.current = nextIndex;
@@ -136,6 +201,16 @@ export default function VolunteerDetail() {
     }
   }
 
+  if (!post) {
+    return (
+      <Screen>
+        <BackButton type="button" aria-label="뒤로 가기" onClick={() => navigate(-1)}>
+          <img src={backButtonIcon} alt="" />
+        </BackButton>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       {/* 위쪽을 가득 채우는 가로로 긴 직사각형 사진입니다. 양옆으로 밀어 장을 바꿉니다. */}
@@ -165,9 +240,11 @@ export default function VolunteerDetail() {
           <img src={backButtonIcon} alt="" />
         </BackButton>
         {/* 사진 오른쪽 아래, 반투명한 어두운 알약에 사진 순서를 적습니다. */}
-        <PhotoCount>
-          {photoIndex + 1} / {photos.length}
-        </PhotoCount>
+        {photos.length > 0 && (
+          <PhotoCount>
+            {photoIndex + 1} / {photos.length}
+          </PhotoCount>
+        )}
       </Hero>
 
       <Content>
@@ -236,11 +313,11 @@ export default function VolunteerDetail() {
 
         <Section>
           <InfoTitle>근무지역</InfoTitle>
-          {/* 연한 초록으로 채운 둥근 사각형. 지도 자리에 발바닥을 둡니다. */}
-          <MapPreview>
-            <img src={mapPawIcon} alt="" />
-            <MapLabel>{post.mapLabel}</MapLabel>
-          </MapPreview>
+          <LocationMap
+            address={post.address}
+            latitude={post.latitude}
+            longitude={post.longitude}
+          />
           <PlaceLink type="button" onClick={() => navigate(`/shelters/${post.shelterId}`)}>
             <PlaceName>{post.shelterName}</PlaceName>
             <Chevron> &gt;</Chevron>
@@ -294,6 +371,11 @@ function toVolunteerView(data) {
     supplies: requirements || "담당자 안내를 확인해 주세요.",
     cautions: requirements ? [requirements] : ["보호시설의 안내를 따라 주세요."],
     address: data.shelter?.address || region,
+    latitude: data.shelter?.latitude ?? null,
+    longitude: data.shelter?.longitude ?? null,
+    photos: (Array.isArray(data.imageUrls) ? data.imageUrls : [])
+      .filter(Boolean)
+      .map((src, index) => ({ id: index + 1, src, position: "center" })),
   };
 }
 
@@ -325,6 +407,7 @@ function formatClockRange(start, end) {
 }
 
 const Screen = styled.div`
+  position: relative;
   min-height: 100dvh;
   padding-bottom: 108px;
   overflow-x: hidden;
@@ -375,11 +458,12 @@ const HeroPhoto = styled.img`
   pointer-events: none;
 `;
 
+/* 화면 왼쪽 위에 고정합니다. 앱 화면이 가운데일 때도 사진 위 같은 자리에 둡니다. */
 const BackButton = styled.button`
-  position: absolute;
+  position: fixed;
   top: 16px;
-  left: 20px;
-  z-index: 1;
+  left: max(20px, calc(50vw - 195px + 20px));
+  z-index: 6;
   border: 0;
   padding: 0;
   background: transparent;
@@ -610,7 +694,16 @@ const ApplyButton = styled.button`
   cursor: pointer;
 `;
 
-/* 지도가 들어가기 전, 연한 초록으로 채운 둥근 사각형입니다. */
+/* 근무지역이 들어가는 둥근 칸입니다. 지도가 채워지기 전에는 연한 초록으로 둡니다. */
+const MapCanvas = styled.div`
+  height: 117px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 10px;
+  background-color: #bdd9c4;
+`;
+
+/* 지도를 찾지 못했을 때 보여 주는 연한 초록 둥근 사각형입니다. */
 const MapPreview = styled.div`
   display: flex;
   flex-direction: column;

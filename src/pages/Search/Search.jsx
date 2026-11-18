@@ -8,8 +8,8 @@ import clearIcon from "../../assets/icons/search/clear.svg";
 import photoPawIcon from "../../assets/icons/search/photo-paw.svg";
 import clockIcon from "../../assets/icons/search/clock.svg";
 import { getPostings } from "../../api/postings.js";
+import { getSavedSearches } from "../../api/search.js";
 import { FILTERS, FILTER_COLORS } from "../../dummyData/map/mapDummy.js";
-import { RECOMMENDED_SEARCHES, SEARCH_RESULTS } from "../../dummyData/search/searchDummy.js";
 
 /* Enter로 검색한 단어만 기억합니다. 화면을 나갔다 들어와도 유지됩니다. */
 let searchedTerms = [];
@@ -32,19 +32,89 @@ const TYPE_LABEL = {
   임시보호: "임시보호",
 };
 
+const DAY_LABEL = { MON: "월", TUE: "화", WED: "수", THU: "목", FRI: "금", SAT: "토", SUN: "일" };
+const TIME_LABEL = { MORNING: "오전", AFTERNOON: "오후", EVENING: "저녁", ALL_DAY: "종일" };
+const CATEGORY_LABEL = {
+  WALK: "산책",
+  CLEANING: "청소",
+  GROOMING: "미용",
+  PHOTO: "사진",
+  FEEDING_CARE: "돌봄",
+  ETC: "기타",
+};
+
+/* 저장 조건을 목록에 보일 한 줄로 바꿉니다. */
+function savedSearchSummary(item) {
+  const region = [item.region?.sido, item.region?.sigungu].filter(Boolean).join(" ");
+  const days = (item.availableDays ?? []).map((day) => DAY_LABEL[day] ?? day).join("·");
+  const times = (item.availableTimeSlots ?? []).map((slot) => TIME_LABEL[slot] ?? slot).join("·");
+  const categories = (item.activityCategories ?? []).map((category) => CATEGORY_LABEL[category] ?? category).join("·");
+  const distance = item.maxDistanceKm ? `${item.maxDistanceKm}km` : "";
+  return [region, distance, [days, times].filter(Boolean).join(" "), categories].filter(Boolean).join(" · ");
+}
+
 export default function Search() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("전체");
   const [recent, setRecent] = useState(searchedTerms);
-  /* null이면 검색 API를 아직 못 받은 상태라 임시 결과를 보여 줍니다. */
+  const [savedSearches, setSavedSearches] = useState(null);
+  const [activeSaved, setActiveSaved] = useState(null);
+  const [savedResults, setSavedResults] = useState(null);
   const [apiResults, setApiResults] = useState(null);
 
-  /* 검색어가 있으면 모집 중인 공고를 가져옵니다. 실패하면 임시 결과를 유지합니다. */
+  /* 저장한 활동 검색 조건을 가져옵니다. 없으면 이 칸은 보여 주지 않습니다. */
+  useEffect(() => {
+    let ignore = false;
+    getSavedSearches()
+      .then((result) => {
+        if (ignore) return;
+        setSavedSearches(result?.isSuccess ? result.data?.savedSearches ?? [] : []);
+      })
+      .catch(() => {
+        if (!ignore) setSavedSearches([]);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  /* 저장 조건을 고르면 그 지역·거리·활동으로 모집공고를 가져옵니다. */
+  useEffect(() => {
+    if (!activeSaved) return undefined;
+    let ignore = false;
+    setSavedResults(null);
+    const region = activeSaved.region ?? {};
+    getPostings({
+      sido: region.sido,
+      sigungu: region.sigungu,
+      latitude: region.latitude,
+      longitude: region.longitude,
+      maxDistanceKm: activeSaved.maxDistanceKm || undefined,
+      activityCategories: activeSaved.activityCategories,
+      postingType: TYPE_QUERY[filter],
+      page: 0,
+      size: 20,
+    })
+      .then((result) => {
+        if (ignore) return;
+        const items = result?.isSuccess ? result.data?.items ?? [] : [];
+        setSavedResults(items.map(toSearchResult));
+      })
+      .catch(() => {
+        if (!ignore) setSavedResults([]);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [activeSaved, filter]);
+
+  /* 검색어가 있으면 모집공고 검색 결과만 보여 줍니다. */
   useEffect(() => {
     const keyword = query.trim();
     if (!keyword) return undefined;
     let ignore = false;
+    setApiResults(null);
     getPostings({
       keyword,
       postingType: TYPE_QUERY[filter],
@@ -52,10 +122,13 @@ export default function Search() {
       size: 20,
     })
       .then((result) => {
-        if (ignore || !result?.isSuccess || !result.data) return;
-        setApiResults((result.data.items ?? []).map(toSearchResult));
+        if (ignore) return;
+        const items = result?.isSuccess ? result.data?.items ?? [] : [];
+        setApiResults(items.map(toSearchResult));
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!ignore) setApiResults([]);
+      });
     return () => {
       ignore = true;
     };
@@ -72,16 +145,10 @@ export default function Search() {
   }
 
   const keyword = query.trim();
-  const dummyResults = SEARCH_RESULTS.filter((item) => {
-    const text = [item.title, item.shelter, item.region, item.area, item.category, ...item.keywords]
-      .join(" ")
-      .toLowerCase();
-    const matchesQuery = text.includes(keyword.toLowerCase());
-    const matchesFilter = filter === "전체" || item.category === filter;
-    return matchesQuery && matchesFilter;
-  });
-  const results = (apiResults ?? dummyResults).filter(
-    (item) => filter !== "즐겨찾기" || item.bookmarked || item.category === "즐겨찾기",
+  const showingSaved = Boolean(activeSaved) && !keyword;
+  const waiting = (Boolean(keyword) && apiResults === null) || (showingSaved && savedResults === null);
+  const results = (showingSaved ? savedResults ?? [] : apiResults ?? []).filter(
+    (item) => filter !== "즐겨찾기" || item.bookmarked,
   );
 
   function openResult(item) {
@@ -98,8 +165,22 @@ export default function Search() {
   }
 
   function searchFor(text) {
+    setActiveSaved(null);
+    setSavedResults(null);
     setQuery(text);
     setFilter("전체");
+  }
+
+  function openSaved(item) {
+    const hasFilters = Boolean(item.region?.sido) || Boolean(item.activityCategories?.length) || Boolean(item.maxDistanceKm);
+    if (!hasFilters && item.name) {
+      searchFor(item.name);
+      return;
+    }
+    setQuery("");
+    setApiResults(null);
+    setFilter("전체");
+    setActiveSaved(item);
   }
 
   return (
@@ -108,7 +189,7 @@ export default function Search() {
         <BackButton type="button" aria-label="뒤로 가기" onClick={() => navigate(-1)}>
           ←
         </BackButton>
-        <Title>{keyword ? "검색 결과" : "통합 검색"}</Title>
+        <Title>{showingSaved ? activeSaved.name || "검색 결과" : keyword ? "검색 결과" : "통합 검색"}</Title>
       </Header>
 
       <Body>
@@ -120,6 +201,8 @@ export default function Search() {
             placeholder="지역, 보호시설, 봉사 활동 검색"
             onChange={(event) => {
               setQuery(event.target.value);
+              setActiveSaved(null);
+              setSavedResults(null);
               setApiResults(null);
               setFilter("전체");
             }}
@@ -130,6 +213,8 @@ export default function Search() {
           {keyword && (
             <ClearButton type="button" aria-label="검색어 지우기" onClick={() => {
               setQuery("");
+              setActiveSaved(null);
+              setSavedResults(null);
               setApiResults(null);
             }}>
               <ClearIcon src={clearIcon} alt="" />
@@ -137,7 +222,7 @@ export default function Search() {
           )}
         </SearchBox>
 
-        {!keyword ? (
+        {!keyword && !activeSaved ? (
           <>
             {recent.length > 0 && (
               <>
@@ -164,16 +249,23 @@ export default function Search() {
               </>
             )}
 
-            <SectionTitle>추천 검색어</SectionTitle>
-            <RecommendList>
-              {RECOMMENDED_SEARCHES.map((text) => (
-                <RecommendItem key={text} type="button" onClick={() => searchFor(text)}>
-                  <RecommendIcon src={recommendIcon} alt="" />
-                  <RecommendText>{text}</RecommendText>
-                  <Chevron src={chevronIcon} alt="" />
-                </RecommendItem>
-              ))}
-            </RecommendList>
+            {savedSearches?.length > 0 && (
+              <>
+                <SectionTitle>저장한 검색 조건</SectionTitle>
+                <RecommendList>
+                  {savedSearches.map((item) => (
+                    <RecommendItem key={item.savedSearchId} type="button" onClick={() => openSaved(item)}>
+                      <RecommendIcon src={recommendIcon} alt="" />
+                      <RecommendText>
+                        <SavedName>{item.name || "저장한 조건"}</SavedName>
+                        <SavedSummary>{savedSearchSummary(item)}</SavedSummary>
+                      </RecommendText>
+                      <Chevron src={chevronIcon} alt="" />
+                    </RecommendItem>
+                  ))}
+                </RecommendList>
+              </>
+            )}
           </>
         ) : (
           <>
@@ -195,9 +287,9 @@ export default function Search() {
               ))}
             </Filters>
 
-            <ResultCount>검색 결과 {results.length}건</ResultCount>
+            <ResultCount>검색 결과 {waiting ? "" : `${results.length}건`}</ResultCount>
 
-            {results.length > 0 ? (
+            {waiting ? null : results.length > 0 ? (
               <ResultList>
                 {results.map((item) => (
                   <ResultCard
@@ -206,8 +298,14 @@ export default function Search() {
                     onClick={() => openResult(item)}
                   >
                     <Photo>
-                      <PhotoPaw src={photoPawIcon} alt="" />
-                      <PhotoLabel>시설 사진</PhotoLabel>
+                      {item.photo ? (
+                        <PhotoImage src={item.photo} alt="" />
+                      ) : (
+                        <>
+                          <PhotoPaw src={photoPawIcon} alt="" />
+                          <PhotoLabel>시설 사진</PhotoLabel>
+                        </>
+                      )}
                     </Photo>
                     <ResultBody>
                       <Badge>{item.badge}</Badge>
@@ -215,10 +313,12 @@ export default function Search() {
                       <Meta>
                         {item.shelter} · {item.region}
                       </Meta>
-                      <Time>
-                        <Clock src={clockIcon} alt="" />
-                        {item.time}
-                      </Time>
+                      {item.time && (
+                        <Time>
+                          <Clock src={clockIcon} alt="" />
+                          {item.time}
+                        </Time>
+                      )}
                     </ResultBody>
                   </ResultCard>
                 ))}
@@ -241,17 +341,21 @@ export default function Search() {
 }
 
 function toSearchResult(item) {
+  const shelter = item.shelter ?? {};
   const type = TYPE_LABEL[item.postingType] ?? item.postingType ?? "";
+  const beginnerFriendly = item.beginnerFriendly ?? shelter.beginnerFriendly;
+  const start = item.activityStartAt ?? shelter.activityStartAt;
   return {
     id: item.postingId,
     postingType: item.postingType,
     category: type,
-    badge: item.beginnerFriendly ? "초보 가능" : item.urgent ? "긴급" : type,
-    title: item.title,
-    shelter: item.shelter?.name ?? "",
-    region: item.shelter?.region?.sigungu ?? item.shelter?.region?.sido ?? "",
-    time: formatStart(item.activityStartAt),
-    bookmarked: Boolean(item.bookmarked),
+    badge: beginnerFriendly ? "초보 가능" : item.urgent ? "긴급" : type,
+    title: item.title ?? "",
+    shelter: shelter.name ?? "",
+    region: shelter.region?.sigungu ?? shelter.region?.sido ?? "",
+    time: formatStart(start),
+    bookmarked: Boolean(item.bookmarked ?? shelter.bookmarked),
+    photo: item.thumbnailUrl || shelter.thumbnailUrl || "",
   };
 }
 
@@ -417,11 +521,24 @@ const RecommendIcon = styled.img`
 `;
 
 const RecommendText = styled.span`
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+`;
+
+const SavedName = styled.span`
   color: #5a5a5a;
   font-size: 15px;
   font-weight: 500;
-  text-align: left;
+`;
+
+const SavedSummary = styled.span`
+  color: #8a8a8a;
+  font-size: 12px;
+  font-weight: 500;
 `;
 
 const Chevron = styled.img`
@@ -489,8 +606,15 @@ const Photo = styled.div`
   justify-content: center;
   flex-shrink: 0;
   width: 116px;
+  overflow: hidden;
   border-radius: 11px;
   background-color: #d9d9d9;
+`;
+
+const PhotoImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 `;
 
 const PhotoPaw = styled.img`

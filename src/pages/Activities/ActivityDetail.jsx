@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
-import backButtonIcon from "../../assets/icons/shelters/detail/back-button.svg";
+import backButtonIcon from "../../assets/icons/shelters/detail/back-button-light.svg";
 import linkIcon from "../../assets/icons/activities/link.svg";
 import infoWaitIcon from "../../assets/icons/activities/info-wait.svg";
 import infoPlanIcon from "../../assets/icons/activities/info-plan.svg";
@@ -10,6 +10,7 @@ import infoReasonIcon from "../../assets/icons/activities/info-reason.svg";
 import dogIcon from "../../assets/icons/activities/dog.svg";
 import closeIcon from "../../assets/icons/activities/close.svg";
 import { deleteVolunteerApplication, getApplicationDetail, getApplicationStatusHistory } from "../../api/volunteer.js";
+import { getPostingDetail } from "../../api/postings.js";
 import { SHELTER_DETAIL } from "../../dummyData/shelters/shelterDummy.js";
 import { findApplication, removeApplication } from "../../dummyData/volunteer/applications.js";
 
@@ -90,9 +91,23 @@ export default function ActivityDetail() {
     let ignore = false;
     setHistory([]);
     getApplicationDetail(activityId)
-      .then((result) => {
+      .then(async (result) => {
         if (ignore || !result?.isSuccess || !result.data) return;
-        setItem(toApplicationDetail(result.data));
+        const view = toApplicationDetail(result.data);
+        let photos = toPhotos(result.data.imageUrls);
+        const postingId = result.data.posting?.postingId;
+        if (!photos.length && postingId) {
+          try {
+            const detail = await getPostingDetail(postingId);
+            if (detail?.isSuccess) photos = toPhotos(detail.data?.imageUrls);
+          } catch {
+            photos = [];
+          }
+        }
+        if (ignore) return;
+        photoIndexRef.current = 0;
+        setPhotoIndex(0);
+        setItem({ ...view, photos });
       })
       .catch(() => {})
       .finally(() => {
@@ -115,7 +130,7 @@ export default function ActivityDetail() {
   const [photoIndex, setPhotoIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const photos = SHELTER_DETAIL.photos;
+  const photos = item?.photos ?? [];
   const frameRef = useRef(null);
   const dragRef = useRef(null);
   const photoIndexRef = useRef(0);
@@ -129,7 +144,7 @@ export default function ActivityDetail() {
     const observer = new ResizeObserver(measure);
     observer.observe(frame);
     return () => observer.disconnect();
-  }, [item]);
+  }, [photos.length]);
 
   function showPhoto(nextIndex) {
     photoIndexRef.current = nextIndex;
@@ -250,9 +265,11 @@ export default function ActivityDetail() {
           <img src={backButtonIcon} alt="" />
         </BackButton>
         {/* 사진 오른쪽 아래, 반투명한 어두운 알약에 지금 장과 전체 장 수를 적습니다. */}
-        <PhotoCount>
-          {photoIndex + 1} / {photos.length}
-        </PhotoCount>
+        {photos.length > 0 && (
+          <PhotoCount>
+            {photoIndex + 1} / {photos.length}
+          </PhotoCount>
+        )}
       </Hero>
 
       <Body>
@@ -406,6 +423,12 @@ function formatHistoryTime(value) {
   return `${date.getFullYear()}.${month}.${day} ${hours}:${minutes}`;
 }
 
+function toPhotos(urls) {
+  return (Array.isArray(urls) ? urls : [])
+    .filter(Boolean)
+    .map((src, index) => ({ id: index + 1, src, position: "center" }));
+}
+
 function toApplicationDetail(data) {
   const region = [data.shelter?.region?.sido, data.shelter?.region?.sigungu].filter(Boolean).join(" ");
   const reason = [...(data.statusHistory ?? [])].reverse().find((row) => row.reason)?.reason ?? "";
@@ -486,20 +509,16 @@ const HeroPhoto = styled.img`
   pointer-events: none;
 `;
 
+/* 화면 왼쪽 위에 고정합니다. 앱 화면이 가운데일 때도 사진 위 같은 자리에 둡니다. */
 const BackButton = styled.button`
-  position: absolute;
+  position: fixed;
   top: 16px;
-  left: 16px;
-  z-index: 2;
+  left: max(20px, calc(50vw - 195px + 20px));
+  z-index: 6;
   border: 0;
   padding: 0;
   background: transparent;
   cursor: pointer;
-
-  img {
-    width: 35px;
-    height: 35px;
-  }
 `;
 
 const PhotoCount = styled.span`
