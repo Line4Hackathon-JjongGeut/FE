@@ -1,3 +1,5 @@
+import { findRegion } from "./koreaRegions.js";
+
 /* 관심 동물 */
 const ANIMAL_TO_API = {
   dog: ["DOG"],
@@ -66,17 +68,9 @@ export function toRegionRequest(region) {
 }
 
 export function fromRegionResponse(region) {
-  if (!region?.sido || !region?.sigungu) return null;
-  const area = `${region.sido} ${region.sigungu}`;
-  return {
-    id: `saved-${area}`,
-    road: area,
-    jibun: area,
-    sido: region.sido,
-    sigungu: region.sigungu,
-    latitude: region.latitude ?? null,
-    longitude: region.longitude ?? null,
-  };
+  const found = findRegion(region?.sido, region?.sigungu);
+  if (!found) return null;
+  return { ...found, latitude: region.latitude ?? null, longitude: region.longitude ?? null };
 }
 
 export function toProfileRequest(preferences) {

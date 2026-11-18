@@ -98,7 +98,7 @@ export default function PreferenceEdit() {
           <RegionField type="button" onClick={() => navigate("/mypage/preferences/region")}>
             <img src={searchIcon} alt="" />
             {form.region ? (
-              form.region.road.split(" ").slice(0, 2).join(" ")
+              form.region.area ?? form.region.road.split(" ").slice(0, 2).join(" ")
             ) : (
               <Placeholder>활동 지역을 설정해 주세요</Placeholder>
             )}
