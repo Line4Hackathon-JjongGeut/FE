@@ -9,8 +9,9 @@ import pawIcon from "../../assets/icons/activities/paw.svg";
 import pawFilledIcon from "../../assets/icons/activities/paw-filled.svg";
 
 import { getMyApplications } from "../../api/volunteer.js";
-import { getApplications, toggleFavorite } from "../../dummyData/volunteer/applications.js";
-import { FILTER_COLORS } from "../../dummyData/map/mapDummy.js";
+import { getActivityCalendar } from "../../api/search.js";
+import { getBookmarkedPostings, getBookmarkedShelters, getParticipationHistory, setSavedFavorite } from "../../api/activities.js";
+import { getPostingDetail } from "../../api/postings.js";
 
 const TABS = [
   { id: "calendar", label: "캘린더" },
@@ -21,18 +22,32 @@ const TABS = [
 const HISTORY_FILTERS = ["전체", "승인 대기", "참여 예정", "참여 완료", "즐겨찾기"];
 const SAVED_FILTERS = ["전체", "봉사", "후원", "임시보호", "즐겨찾기"];
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+const FILTER_COLORS = {
+  전체: "#382f2f",
+  봉사: "#3e7556",
+  후원: "#c47b3b",
+  임시보호: "#f2a60c",
+  즐겨찾기: "#c4513b",
+};
+const POSTING_CATEGORY = {
+  VOLUNTEER: "봉사",
+  DONATION: "후원",
+  FOSTER: "임시보호",
+};
 
 const BADGE = {
   "승인 대기": { background: "#fcebc4", color: "#6e5110" },
   "참여 예정": { background: "#e3f0e6", color: "#2f5e43" },
   "참여 완료": { background: "#e9e9e9", color: "#50545a" },
   "신청 반려": { background: "#f9eae7", color: "#c8807a" },
+  "모집 중": { background: "#e3f0e6", color: "#2f5e43" },
+  "모집 마감": { background: "#e9e9e9", color: "#50545a" },
 };
 
 /* 화면의 상태 이름과 목록 조회에 보내는 status 값입니다. */
 const STATUS_QUERY = {
   "승인 대기": "PENDING",
-  "참여 예정": "APPROVED",
+  "참여 예정": "CONFIRMED",
   "참여 완료": "COMPLETED",
 };
 
@@ -45,6 +60,7 @@ const STATUS_LABEL = {
   REJECTED: "신청 반려",
   CANCELED: "신청 취소",
   CANCELLED: "신청 취소",
+  NO_SHOW: "불참",
 };
 
 /* 하단 메뉴의 활동을 누르면 캘린더, 활동 내역, 저장을 오갑니다. */
@@ -67,51 +83,131 @@ export default function Activities() {
   );
 
   const [savedFilter, setSavedFilter] = useState("전체");
-  const [cursor, setCursor] = useState(() => new Date(2026, 10, 1));
-  const [selectedKey, setSelectedKey] = useState("2026-11-14");
+  const [cursor, setCursor] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+  const [selectedKey, setSelectedKey] = useState(() => keyOf(new Date()));
   const [monthOpen, setMonthOpen] = useState(false);
-  const [items, setItems] = useState(() => getApplications());
-
-  /* null이면 아직 목록 API를 못 받은 상태라 임시 목록을 보여 줍니다. */
+  const [calendarItems, setCalendarItems] = useState(null);
   const [historyItems, setHistoryItems] = useState(null);
+  const [savedItems, setSavedItems] = useState(null);
+  const [bookmarkedIds, setBookmarkedIds] = useState(null);
+  const [bookmarkedShelterIds, setBookmarkedShelterIds] = useState(null);
+  const [bookmarkTick, setBookmarkTick] = useState(0);
+  const monthKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
 
-  /* 활동 내역 탭의 신청 목록을 최근 신청순으로 가져옵니다. 실패하면 임시 목록을 유지합니다. */
+  /* 참여 완료는 과거 참여 이력을, 그 외 활동 내역은 신청 목록을 보여 줍니다. */
   useEffect(() => {
     if (tab !== "history") return undefined;
-
     let ignore = false;
+    setHistoryItems(null);
 
+    const completed = historyFilter === "참여 완료";
     const status =
-      historyFilter === "전체" || historyFilter === "즐겨찾기"
+      historyFilter === "전체" || historyFilter === "즐겨찾기" || completed
         ? undefined
         : STATUS_QUERY[historyFilter];
+    const request = completed
+      ? getParticipationHistory({ status: "COMPLETED", page: 0, size: 50 })
+      : getMyApplications({ status, page: 0, size: 50 });
 
-    getMyApplications({ status, page: 0, size: 20 })
+    request
       .then((result) => {
-        if (ignore || !result?.isSuccess || !result.data) return;
-
-        setHistoryItems((current) => {
-          const favorites = new Set(
-            (current ?? [])
-              .filter((item) => item.favorite)
-              .map((item) => String(item.id)),
-          );
-
-          return (result.data.items ?? []).map((item) => {
-            const card = toApplicationCard(item);
-            return {
-              ...card,
-              favorite: favorites.has(String(card.id)),
-            };
-          });
-        });
+        if (ignore) return;
+        const items = result?.isSuccess ? result.data?.items ?? [] : [];
+        setHistoryItems(items.map(completed ? toParticipationCard : toApplicationCard));
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!ignore) setHistoryItems([]);
+      });
 
     return () => {
       ignore = true;
     };
   }, [tab, historyFilter]);
+
+  /* 캘린더 API는 확정·완료만 줍니다. 승인 대기처럼 아직 확정 전인 신청은 신청 목록에서 같은 달만 더합니다. */
+  useEffect(() => {
+    if (tab !== "calendar") return undefined;
+    let ignore = false;
+    setCalendarItems(null);
+
+    Promise.all([
+      getActivityCalendar(monthKey).catch(() => null),
+      getMyApplications({ page: 0, size: 50 }).catch(() => null),
+    ]).then(async ([calendarResult, applicationResult]) => {
+      if (ignore) return;
+
+      const byId = new Map();
+      const applications = applicationResult?.isSuccess ? applicationResult.data?.items ?? [] : [];
+      applications.forEach((item) => {
+        const card = toApplicationCard(item);
+        if (!card.activityDate.startsWith(monthKey) || !showsOnCalendar(card.status)) return;
+        byId.set(String(card.id), card);
+      });
+
+      const scheduled = calendarResult?.isSuccess ? calendarResult.data?.items ?? [] : [];
+      scheduled.forEach((item) => {
+        const card = toCalendarCard(item);
+        if (!card.activityDate.startsWith(monthKey)) return;
+        if (!byId.has(String(card.id))) byId.set(String(card.id), card);
+      });
+
+      const cards = [...byId.values()];
+      const postingIds = [...new Set(cards.map((card) => card.postingId).filter((id) => id != null))];
+      const photos = await Promise.all(
+        postingIds.map(async (postingId) => {
+          try {
+            const detail = await getPostingDetail(postingId);
+            const urls = detail?.isSuccess && Array.isArray(detail.data?.imageUrls) ? detail.data.imageUrls : [];
+            return [String(postingId), urls.find(Boolean) || ""];
+          } catch {
+            return [String(postingId), ""];
+          }
+        }),
+      );
+      if (ignore) return;
+
+      const photoByPosting = new Map(photos);
+      setCalendarItems(
+        cards.map((card) => ({
+          ...card,
+          photo: photoByPosting.get(String(card.postingId)) || "",
+        })),
+      );
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [tab, monthKey]);
+
+  /* 저장 탭은 관심 공고와, 공고가 없는 관심 시설을 함께 보여 줍니다. */
+  useEffect(() => {
+    let ignore = false;
+
+    Promise.all([
+      getBookmarkedPostings({ page: 0, size: 50 }).catch(() => null),
+      getBookmarkedShelters({ page: 0, size: 50 }).catch(() => null),
+    ]).then(([postingResult, shelterResult]) => {
+      if (ignore) return;
+      const postings = postingResult?.isSuccess ? postingResult.data?.items ?? [] : [];
+      const shelters = shelterResult?.isSuccess ? shelterResult.data?.items ?? [] : [];
+      const postingCards = postings.map(toSavedCard);
+      const covered = new Set(postingCards.map((item) => String(item.shelterId)));
+      const shelterCards = shelters
+        .filter((item) => !covered.has(String(item.shelterId)))
+        .map(toSavedShelterCard);
+      setSavedItems([...postingCards, ...shelterCards]);
+      setBookmarkedIds(new Set(postingCards.map((item) => String(item.postingId))));
+      setBookmarkedShelterIds(new Set(shelters.map((item) => String(item.shelterId))));
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [bookmarkTick]);
 
   function openDetail(id) {
     navigate(`/activities/${id}`, {
@@ -119,48 +215,59 @@ export default function Activities() {
     });
   }
 
-  function refresh(id) {
-    toggleFavorite(id);
-    setItems(getApplications());
-
-    setHistoryItems(
-      (current) =>
-        current?.map((item) =>
-          String(item.id) === String(id)
-            ? { ...item, favorite: !item.favorite }
-            : item,
-        ) ?? current,
-    );
+  function openPosting(item) {
+    const id = item.postingId ?? item.id;
+    if (item.category === "후원") {
+      navigate(`/donations/${id}`);
+      return;
+    }
+    if (item.category === "임시보호") {
+      navigate(`/fosters/${id}`);
+      return;
+    }
+    navigate(`/shelters/volunteer/${id}`);
   }
 
-  const history = items.filter((item) => item.inHistory !== false);
-  const historySource = historyItems ?? history;
-  const saved = items.filter((item) => item.favorite);
-  const calendarItems = items.filter(
-    (item) => item.onCalendar && item.activityDate,
-  );
+  async function toggleBookmark(item) {
+    const postingId = item?.postingId;
+    const shelterId = item?.shelterId;
+    const saved = item?.kind === "shelter"
+      || bookmarkedIds?.has(String(postingId))
+      || bookmarkedShelterIds?.has(String(shelterId));
 
-  const visibleHistory = historySource.filter((item) => {
-    if (historyFilter === "즐겨찾기") return item.favorite;
-    if (historyItems) return true;
-    if (historyFilter === "전체") return true;
-    return item.status === historyFilter;
+    try {
+      await setSavedFavorite({
+        shelterId,
+        postingIds: postingId != null ? [postingId] : [],
+        saved: Boolean(saved),
+      });
+      setBookmarkTick((tick) => tick + 1);
+    } catch {
+      /* 저장에 실패하면 목록은 그대로 둡니다. */
+    }
+  }
+
+  const visibleHistory = (historyItems ?? []).filter((item) => {
+    if (historyFilter !== "즐겨찾기") return true;
+    return bookmarkedIds?.has(String(item.postingId)) || bookmarkedShelterIds?.has(String(item.shelterId));
   });
 
-  const visibleSaved = saved.filter((item) => {
+  const visibleSaved = (savedItems ?? []).filter((item) => {
     if (savedFilter === "전체" || savedFilter === "즐겨찾기") return true;
     return item.category === savedFilter;
   });
+
+  const scheduleItems = calendarItems ?? [];
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
   const selected = parseKey(selectedKey);
 
-  const selectedItems = calendarItems.filter(
+  const selectedItems = scheduleItems.filter(
     (item) => item.activityDate === selectedKey,
   );
 
-  const upcoming = calendarItems
+  const upcoming = scheduleItems
     .filter((item) => item.activityDate > selectedKey)
     .sort((a, b) => a.activityDate.localeCompare(b.activityDate));
 
@@ -231,7 +338,7 @@ export default function Activities() {
               {week.map((date) => {
                 const key = keyOf(date);
                 const inMonth = date.getMonth() === month;
-                const marked = calendarItems.some(
+                const marked = scheduleItems.some(
                   (item) => item.activityDate === key,
                 );
 
@@ -276,9 +383,12 @@ export default function Activities() {
           {selectedItems.map((item) => (
             <CalendarCard
               key={item.id}
-              item={item}
+              item={{
+                ...item,
+                favorite: bookmarkedIds?.has(String(item.postingId)) || bookmarkedShelterIds?.has(String(item.shelterId)),
+              }}
               onOpen={() => openDetail(item.id)}
-              onFavorite={() => refresh(item.id)}
+              onFavorite={() => toggleBookmark(item)}
             />
           ))}
 
@@ -296,9 +406,12 @@ export default function Activities() {
                   {group.items.map((item) => (
                     <CalendarCard
                       key={item.id}
-                      item={item}
+                      item={{
+                ...item,
+                favorite: bookmarkedIds?.has(String(item.postingId)) || bookmarkedShelterIds?.has(String(item.shelterId)),
+              }}
                       onOpen={() => openDetail(item.id)}
-                      onFavorite={() => refresh(item.id)}
+                      onFavorite={() => toggleBookmark(item)}
                     />
                   ))}
                 </div>
@@ -341,14 +454,22 @@ export default function Activities() {
           </Filters>
 
           <List>
-            {(tab === "history"
-              ? visibleHistory
-              : visibleSaved
-            ).map((item) => (
+            {(tab === "history" ? visibleHistory : visibleSaved).map((item) => {
+              const favorite = tab === "saved"
+                || bookmarkedIds?.has(String(item.postingId))
+                || bookmarkedShelterIds?.has(String(item.shelterId));
+              return (
               <HistoryCard
                 key={item.id}
                 type="button"
-                onClick={() => openDetail(item.id)}
+                onClick={() => {
+                  if (item.kind === "shelter") {
+                    navigate(`/shelters/${item.shelterId}`);
+                    return;
+                  }
+                  if (tab === "history") openDetail(item.id);
+                  else openPosting(item);
+                }}
               >
                 <Badge
                   $background={badgeStyle(item.status).background}
@@ -367,28 +488,22 @@ export default function Activities() {
 
                 <Favorite
                   type="button"
-                  aria-label={item.favorite ? "저장 해제" : "저장"}
+                  aria-label={favorite ? "저장 해제" : "저장"}
                   onClick={(event) => {
                     event.stopPropagation();
-                    refresh(item.id);
+                    toggleBookmark(item);
                   }}
                 >
-                  <Paw
-                    src={
-                      tab === "saved" || item.favorite
-                        ? pawFilledIcon
-                        : pawIcon
-                    }
-                    alt=""
-                  />
+                  <Paw src={favorite ? pawFilledIcon : pawIcon} alt="" />
                 </Favorite>
               </HistoryCard>
-            ))}
+              );
+            })}
 
             {(tab === "history"
-              ? visibleHistory
-              : visibleSaved
-            ).length === 0 && (
+              ? historyItems !== null && (historyFilter !== "즐겨찾기" || bookmarkedIds !== null)
+              : savedItems !== null) &&
+              (tab === "history" ? visibleHistory : visibleSaved).length === 0 && (
               <Empty>표시할 활동이 없어요.</Empty>
             )}
           </List>
@@ -399,17 +514,26 @@ export default function Activities() {
 }
 
 function CalendarCard({ item, onOpen, onFavorite }) {
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const showPhoto = Boolean(item.photo) && !photoFailed;
+
   return (
     <CalendarRow>
       <PhotoBox>
-        <PhotoPaw src={photoPawIcon} alt="" />
-        <PhotoLabel>임시보호 사진</PhotoLabel>
+        {showPhoto ? (
+          <PhotoImage src={item.photo} alt="" onError={() => setPhotoFailed(true)} />
+        ) : (
+          <>
+            <PhotoPaw src={photoPawIcon} alt="" />
+            <PhotoLabel>임시보호 사진</PhotoLabel>
+          </>
+        )}
       </PhotoBox>
 
       <CalendarBody type="button" onClick={onOpen}>
         <Badge
-          $background={BADGE[item.status].background}
-          $color={BADGE[item.status].color}
+          $background={badgeStyle(item.status).background}
+          $color={badgeStyle(item.status).color}
         >
           {item.status}
         </Badge>
@@ -437,6 +561,21 @@ function CalendarCard({ item, onOpen, onFavorite }) {
   );
 }
 
+/* 참여 이력 한 건을 활동 카드에 맞게 바꿉니다. 제목과 시설명이 신청 목록과 다른 칸에 있습니다. */
+function toParticipationCard(item) {
+  return {
+    id: item.applicationId,
+    status: STATUS_LABEL[item.status] ?? item.status,
+    title: item.postingTitle ?? "",
+    shelter: item.shelterName ?? "",
+    shelterId: item.shelterId,
+    schedule: formatActivityTime(item.activityStartAt),
+    postingId: item.postingId,
+    activityDate: dateKey(item.activityStartAt),
+    category: "봉사",
+  };
+}
+
 /* 목록 응답 한 건을 활동 카드에 맞게 바꿉니다. */
 function toApplicationCard(item) {
   return {
@@ -452,9 +591,70 @@ function toApplicationCard(item) {
     postingId: item.postingId,
     scheduleId: item.scheduleId,
     cancellable: item.cancellable,
-    favorite: false,
+    activityDate: dateKey(item.activityStartAt),
     category: "봉사",
   };
+}
+
+/* 캘린더 응답 한 건을 날짜 카드에 맞게 바꿉니다. */
+function toCalendarCard(item) {
+  return {
+    id: item.applicationId,
+    postingId: item.postingId,
+    status: STATUS_LABEL[item.status] ?? item.status,
+    title: item.postingTitle ?? item.title ?? "",
+    shelter: item.shelterName ?? item.shelter?.name ?? "",
+    shelterId: item.shelterId,
+    schedule: formatActivityTime(item.activityStartAt, item.activityEndAt),
+    activityDate: dateKey(item.activityStartAt),
+  };
+}
+
+/* 관심 공고 한 건을 저장 카드에 맞게 바꿉니다. */
+function toSavedCard(item) {
+  return {
+    id: item.postingId,
+    postingId: item.postingId,
+    shelterId: item.shelterId,
+    category: POSTING_CATEGORY[item.postingType] ?? item.postingType ?? "",
+    status: savedStatus(item.status),
+    title: item.title ?? "",
+    shelter: item.shelterName ?? "",
+    schedule: formatActivityTime(item.activityStartAt, item.activityEndAt),
+  };
+}
+
+/* 공고 없이 저장한 시설을 저장 카드로 바꿉니다. */
+function toSavedShelterCard(item) {
+  const region = [item.region?.sido, item.region?.sigungu].filter(Boolean).join(" ");
+  const count = item.openPostingCount;
+  return {
+    id: `shelter-${item.shelterId}`,
+    shelterId: item.shelterId,
+    kind: "shelter",
+    category: "",
+    status: count > 0 ? "모집 중" : "",
+    title: item.name ?? "",
+    shelter: region,
+    schedule: count != null ? `모집 중 공고 ${count}건` : "",
+  };
+}
+
+function showsOnCalendar(status) {
+  return status !== "신청 취소" && status !== "신청 반려" && status !== "불참";
+}
+
+function savedStatus(status) {
+  if (STATUS_LABEL[status]) return STATUS_LABEL[status];
+  if (status === "OPEN") return "모집 중";
+  if (status === "CLOSED") return "모집 마감";
+  return status ?? "";
+}
+
+function dateKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return keyOf(date);
 }
 
 function formatActivityTime(start, end) {
@@ -739,7 +939,7 @@ const CalendarRow = styled.div`
   padding: 0 20px 8px;
 `;
 
-/* 연두색 둥근 사각형 사진 자리입니다. */
+/* 연두색 둥근 사각형 사진 자리입니다. 사진이 오면 그 칸을 채웁니다. */
 const PhotoBox = styled.div`
   display: flex;
   flex-direction: column;
@@ -748,8 +948,15 @@ const PhotoBox = styled.div`
   gap: 4px;
   width: 118px;
   height: 93px;
+  overflow: hidden;
   border-radius: 8px;
   background-color: #bdd9c4;
+`;
+
+const PhotoImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 `;
 
 const PhotoPaw = styled.img`

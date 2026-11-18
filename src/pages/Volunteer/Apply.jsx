@@ -7,12 +7,12 @@ import pinIcon from "../../assets/icons/volunteer/apply/pin.svg";
 import stepDoneIcon from "../../assets/icons/volunteer/apply/step-done.svg";
 import checkIcon from "../../assets/icons/volunteer/apply/check.svg";
 import chevronIcon from "../../assets/icons/volunteer/apply/chevron.svg";
-import infoRingIcon from "../../assets/icons/volunteer/apply/info-ring.svg";
-import infoStemIcon from "../../assets/icons/volunteer/apply/info-stem.svg";
-import { getPostingQuestions, getPostingSchedules } from "../../api/postings.js";
+import infoCircleIcon from "../../assets/icons/volunteer/apply/info-circle.svg";
+import infoMarkIcon from "../../assets/icons/volunteer/apply/info-mark.svg";
+import { getPostingDetail, getPostingQuestions, getPostingSchedules } from "../../api/postings.js";
+import { getMyProfile, getMyVolunteerExperiences } from "../../api/profile.js";
+import { getMyAccount } from "../../api/users.js";
 import { postVolunteerApplication } from "../../api/volunteer.js";
-import { findVolunteerPost, SHELTER_DETAIL, VOLUNTEER_POSTS } from "../../dummyData/shelters/shelterDummy.js";
-import { addApplication } from "../../dummyData/volunteer/applications.js";
 
 const STEPS = [
   { id: 1, label: "신청 정보" },
@@ -26,70 +26,140 @@ const CONSENTS = [
   "봉사활동 유의사항 확인",
 ];
 
-const SAVED_PROFILE = {
-  name: "이현승",
-  phone: "010-1234-5678",
+const EXPERIENCE_LABELS = {
+  FIRST: "처음이에요",
+  ONE_TO_THREE: "1~3회",
+  FOUR_PLUS: "4회 이상",
 };
 
 /* 지원하기를 누르면 신청 정보, 추가 질문, 동의 순서로 진행됩니다. */
 export default function Apply() {
   const navigate = useNavigate();
   const { postId } = useParams();
-  const post = findVolunteerPost(postId);
-  const source = VOLUNTEER_POSTS.find((item) => item.id === Number(postId)) ?? VOLUNTEER_POSTS[0];
+  const numericId = /^\d+$/.test(String(postId ?? ""));
+  const [post, setPost] = useState(null);
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [experience, setExperience] = useState("1 - 3회 / 온보딩에서 입력한 경험");
+  const [experience, setExperience] = useState("");
+  const [experienceId, setExperienceId] = useState(null);
   const [editingExperience, setEditingExperience] = useState(false);
-  const [joined, setJoined] = useState("없어요");
   const [message, setMessage] = useState("");
   const [checked, setChecked] = useState(() => new Set());
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [schedules, setSchedules] = useState(null);
-  const [selectedKey, setSelectedKey] = useState("saved");
+  const [selectedKey, setSelectedKey] = useState("");
   const [questions, setQuestions] = useState(null);
   const [answerMap, setAnswerMap] = useState({});
 
-  /* 숫자 공고 번호면 신청 가능한 일정을 가져옵니다. 실패하면 기존 시간 하나를 유지합니다. */
+  /* 공고 제목, 시설명, 사진은 공고 상세에서만 가져옵니다. */
   useEffect(() => {
-    if (!/^\d+$/.test(String(postId ?? ""))) return undefined;
+    if (!numericId) {
+      setPost({});
+      return undefined;
+    }
+    let ignore = false;
+    getPostingDetail(postId)
+      .then((result) => {
+        if (ignore) return;
+        setPost(result?.isSuccess ? toApplyPost(result.data) : {});
+      })
+      .catch(() => {
+        if (!ignore) setPost({});
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [numericId, postId]);
+
+  /* 신청 가능한 일정만 보여 줍니다. 실패하면 시간을 비워 둡니다. */
+  useEffect(() => {
+    if (!numericId) {
+      setSchedules([]);
+      return undefined;
+    }
     let ignore = false;
     getPostingSchedules(postId)
       .then((result) => {
-        if (ignore || !result?.isSuccess || !Array.isArray(result.data?.items)) return;
-        const options = result.data.items.map((item, index) => ({
-          key: String(item.scheduleId ?? item.activityStartAt ?? item.startAt ?? index),
-          scheduleId: item.scheduleId ?? null,
-          label: formatScheduleLabel(item),
-        }));
-        if (!options.length) return;
+        if (ignore) return;
+        const options = result?.isSuccess && Array.isArray(result.data?.items)
+          ? result.data.items.map((item, index) => ({
+              key: String(item.scheduleId ?? item.activityStartAt ?? item.startAt ?? index),
+              scheduleId: item.scheduleId ?? null,
+              label: formatScheduleLabel(item),
+            }))
+          : [];
         setSchedules(options);
-        setSelectedKey(options[0].key);
+        setSelectedKey(options[0]?.key ?? "");
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!ignore) setSchedules([]);
+      });
     return () => {
       ignore = true;
     };
-  }, [postId]);
+  }, [numericId, postId]);
 
-  /* 숫자 공고 번호면 신청서 질문을 가져옵니다. 질문이 아니면 기존 추가 질문을 유지합니다. */
+  /* 신청서 질문이 있을 때만 추가 질문을 보여 줍니다. */
   useEffect(() => {
-    if (!/^\d+$/.test(String(postId ?? ""))) return undefined;
+    if (!numericId) {
+      setQuestions([]);
+      return undefined;
+    }
     let ignore = false;
     getPostingQuestions(postId)
       .then((result) => {
-        if (ignore || !result?.isSuccess || !Array.isArray(result.data?.items)) return;
-        const items = result.data.items.map(toQuestion).filter(Boolean);
-        if (!items.length) return;
+        if (ignore) return;
+        const items = result?.isSuccess && Array.isArray(result.data?.items)
+          ? result.data.items.map(toQuestion).filter(Boolean)
+          : [];
         setQuestions(items);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!ignore) setQuestions([]);
+      });
     return () => {
       ignore = true;
     };
-  }, [postId]);
+  }, [numericId, postId]);
+
+  /* 봉사 경험은 저장한 경험이나 프로필의 경험 수준만 보여 줍니다. */
+  useEffect(() => {
+    let ignore = false;
+    Promise.all([
+      getMyVolunteerExperiences().catch(() => null),
+      getMyProfile().catch(() => null),
+    ]).then(([experienceResult, profileResult]) => {
+      if (ignore) return;
+      const items = experienceResult?.isSuccess ? experienceResult.data?.experiences ?? [] : [];
+      const latest = [...items].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )[0];
+      if (latest) {
+        setExperienceId(latest.experienceId ?? null);
+        setExperience(latest.summary || latest.content || "");
+        return;
+      }
+      const level = profileResult?.isSuccess ? profileResult.data?.experienceLevel : null;
+      setExperience(EXPERIENCE_LABELS[level] ?? "");
+    });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  /* 가입할 때 저장한 이름과 연락처를 입력칸에 넣습니다. */
+  async function fillSavedProfile() {
+    try {
+      const result = await getMyAccount();
+      if (!result?.isSuccess) return;
+      setName(result.data?.name ?? "");
+      setPhone(result.data?.phone ?? "");
+    } catch {
+      /* 계정을 못 가져오면 입력칸은 그대로 둡니다. */
+    }
+  }
 
   function chooseAnswer(question, option) {
     setAnswerMap((current) => {
@@ -114,35 +184,26 @@ export default function Apply() {
 
   /* 접수 신청 완료하기. 선택한 일정으로 봉사 신청을 보내고, 성공하면 완료 화면으로 이동합니다. */
   async function finish() {
-    if (submitting) return;
+    if (submitting || !CONSENTS.every((label) => checked.has(label))) return;
     const chosen = schedules?.find((item) => item.key === selectedKey);
-    const scheduleId = chosen?.scheduleId ?? post.scheduleId ?? post.id;
+    if (chosen?.scheduleId == null) {
+      setSubmitError("신청할 일정을 선택해 주세요.");
+      return;
+    }
     setSubmitting(true);
     setSubmitError("");
     try {
-      const answers = questions?.length
-        ? questions
-            .filter((item) => item.questionId != null)
-            .map((item) => ({
-              questionId: item.questionId,
-              values: (answerMap[item.key] ?? []).filter((value) => value !== ""),
-            }))
-            .filter((item) => item.values.length)
-        : post.questionId != null
-          ? [{ questionId: post.questionId, values: [joined] }]
-          : [];
-      await postVolunteerApplication(scheduleId, {
+      const answers = (questions ?? [])
+        .filter((item) => item.questionId != null)
+        .map((item) => ({
+          questionId: item.questionId,
+          values: (answerMap[item.key] ?? []).filter((value) => value !== ""),
+        }))
+        .filter((item) => item.values.length);
+      await postVolunteerApplication(chosen.scheduleId, {
         answers,
         message,
-        experienceId: post.experienceId,
-      });
-      addApplication({
-        title: post.title,
-        shelter: SHELTER_DETAIL.name,
-        schedule: chosen?.label ?? post.schedule,
-        place: "서울 용산구 보호시설",
-        applicant: name.trim() || SAVED_PROFILE.name,
-        supplies: "편한 복장과 운동화를 착용해 주세요.\n활동 전 보호시설의 안내를 확인해 주세요.",
+        experienceId,
       });
       navigate("/volunteer/complete");
     } catch (error) {
@@ -151,6 +212,9 @@ export default function Apply() {
       setSubmitting(false);
     }
   }
+
+  const chosenSchedule = schedules?.find((item) => item.key === selectedKey);
+  const allAgreed = CONSENTS.every((label) => checked.has(label));
 
   return (
     <Screen>
@@ -192,43 +256,55 @@ export default function Apply() {
               <SectionTitle>신청 활동</SectionTitle>
               <ActivityCard>
                 <ActivityText>
-                  <ActivityTitle>{post.title}</ActivityTitle>
+                  <ActivityTitle>{post?.title ?? ""}</ActivityTitle>
                   <ShelterLine>
                     <Pin src={pinIcon} alt="" />
-                    {source.shelterName}
+                    {post?.shelterName ?? ""}
                   </ShelterLine>
                 </ActivityText>
-                {/* 연두색 둥근 사각형 안에 발바닥과 사진 자리 글자를 둡니다. */}
-                <PhotoBox>
-                  <Paw src={pawIcon} alt="" />
-                  <PhotoLabel>활동 사진</PhotoLabel>
-                </PhotoBox>
+                {post?.photo ? (
+                  <PhotoImage src={post.photo} alt="" />
+                ) : (
+                  <PhotoBox>
+                    <Paw src={pawIcon} alt="" />
+                    <PhotoLabel>활동 사진</PhotoLabel>
+                  </PhotoBox>
+                )}
               </ActivityCard>
             </Section>
 
             <Section>
               <SectionTitle>활동 시간 선택</SectionTitle>
               <TimeList>
-                {(schedules ?? [{ key: "saved", label: post.cardSchedule }]).map((option) => {
-                  const selected = option.key === selectedKey || (!schedules && option.key === "saved");
-                  return (
-                    <TimeOption
-                      key={option.key}
-                      type="button"
-                      $selected={selected}
-                      onClick={() => setSelectedKey(option.key)}
-                    >
-                      {selected ? (
-                        <FilledRadio>
-                          <RadioDot />
-                        </FilledRadio>
-                      ) : (
-                        <EmptyRadio $large />
-                      )}
-                      {option.label}
-                    </TimeOption>
-                  );
-                })}
+                {/* 일정이 오기 전에도 선택한 것과 같은 네모칸을 먼저 보여 줍니다. */}
+                {schedules === null ? (
+                  <TimeOption as="div" $selected>
+                    <FilledRadio>
+                      <RadioDot />
+                    </FilledRadio>
+                  </TimeOption>
+                ) : (
+                  schedules.map((option) => {
+                    const selected = option.key === selectedKey;
+                    return (
+                      <TimeOption
+                        key={option.key}
+                        type="button"
+                        $selected={selected}
+                        onClick={() => setSelectedKey(option.key)}
+                      >
+                        {selected ? (
+                          <FilledRadio>
+                            <RadioDot />
+                          </FilledRadio>
+                        ) : (
+                          <EmptyRadio $large />
+                        )}
+                        {option.label}
+                      </TimeOption>
+                    );
+                  })
+                )}
               </TimeList>
             </Section>
 
@@ -244,13 +320,7 @@ export default function Apply() {
                 placeholder="연락처를 입력해 주세요."
                 onChange={(event) => setPhone(event.target.value)}
               />
-              <ProfileLink
-                type="button"
-                onClick={() => {
-                  setName(SAVED_PROFILE.name);
-                  setPhone(SAVED_PROFILE.phone);
-                }}
-              >
+              <ProfileLink type="button" onClick={fillSavedProfile}>
                 가입 시 입력한 정보 가져오기
               </ProfileLink>
             </Section>
@@ -279,7 +349,7 @@ export default function Apply() {
               </ProfileLink>
             </Section>
 
-            {questions?.length ? (
+            {questions?.length > 0 &&
               questions.map((question) => (
                 <QuestionBlock key={question.key}>
                   <SectionTitle>
@@ -312,27 +382,7 @@ export default function Apply() {
                     })
                   )}
                 </QuestionBlock>
-              ))
-            ) : (
-              <QuestionBlock>
-                <SectionTitle>
-                  추가 질문<Required>*</Required>
-                </SectionTitle>
-                <Question>동물과 함께하는 봉사에 참여한 적이 있나요?</Question>
-                {["있어요", "없어요"].map((option) => (
-                  <Choice key={option} type="button" onClick={() => setJoined(option)}>
-                    {joined === option ? (
-                      <FilledRadio $small>
-                        <RadioDot $small />
-                      </FilledRadio>
-                    ) : (
-                      <EmptyRadio />
-                    )}
-                    {option}
-                  </Choice>
-                ))}
-              </QuestionBlock>
-            )}
+              ))}
 
             <Section>
               <SectionTitle>보호시설에 전할 말</SectionTitle>
@@ -351,9 +401,9 @@ export default function Apply() {
             <SummaryCard>
               <SummaryTop>
                 <PlanBadge>참여 예정</PlanBadge>
-                <SummaryTitle>{post.title}</SummaryTitle>
+                <SummaryTitle>{post?.title ?? ""}</SummaryTitle>
               </SummaryTop>
-              <SummaryTime>{post.schedule}</SummaryTime>
+              <SummaryTime>{chosenSchedule?.label ?? ""}</SummaryTime>
             </SummaryCard>
 
             <Section>
@@ -376,8 +426,8 @@ export default function Apply() {
 
             <Notice>
               <InfoMark>
-                <img src={infoRingIcon} alt="" />
-                <InfoStem src={infoStemIcon} alt="" />
+                <InfoCircle src={infoCircleIcon} alt="" />
+                <InfoGlyph src={infoMarkIcon} alt="" />
               </InfoMark>
               <NoticeText>
                 <strong>신청완료 후 보호시설이 검토해요.</strong>
@@ -392,7 +442,7 @@ export default function Apply() {
         {step === 3 && submitError && <SubmitError>{submitError}</SubmitError>}
         <NextButton
           type="button"
-          disabled={submitting}
+          disabled={submitting || (step === 3 && !allAgreed)}
           onClick={() => (step === 3 ? finish() : setStep(step + 1))}
         >
           {step === 3 ? "접수 신청 완료하기" : "다음"}
@@ -571,6 +621,7 @@ const ActivityText = styled.div`
 `;
 
 const ActivityTitle = styled.p`
+  min-height: 23px;
   margin: 0;
   color: #2f3833;
   font-size: 19px;
@@ -581,6 +632,7 @@ const ShelterLine = styled.p`
   display: flex;
   align-items: center;
   gap: 6px;
+  min-height: 16px;
   margin: 0;
   color: #4f5a54;
   font-size: 12px;
@@ -615,6 +667,22 @@ const PhotoLabel = styled.span`
   font-size: 7px;
   font-weight: 600;
 `;
+
+const PhotoImage = styled.img`
+  width: 69px;
+  height: 54px;
+  border-radius: 5px;
+  object-fit: cover;
+`;
+
+function toApplyPost(data) {
+  const photo = (Array.isArray(data?.imageUrls) ? data.imageUrls : []).find(Boolean);
+  return {
+    title: data?.title ?? "",
+    shelterName: data?.shelter?.name ?? "",
+    photo: photo || "",
+  };
+}
 
 function toQuestion(item, index) {
   const questionId = item.questionId ?? item.id ?? null;
@@ -676,12 +744,11 @@ const TimeOption = styled.button`
   cursor: pointer;
 `;
 
-/* 선택된 항목의 분홍색 동그라미입니다. */
+/* 선택된 항목의 분홍색 동그라미입니다. 흰 점은 원의 정가운데에 둡니다. */
 const FilledRadio = styled.span`
-  display: flex;
+  position: relative;
+  display: block;
   flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
   width: ${(props) => (props.$small ? "18px" : "22px")};
   height: ${(props) => (props.$small ? "18px" : "22px")};
   border-radius: 50%;
@@ -689,10 +756,14 @@ const FilledRadio = styled.span`
 `;
 
 const RadioDot = styled.span`
-  width: ${(props) => (props.$small ? "7px" : "8px")};
-  height: ${(props) => (props.$small ? "7px" : "8px")};
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: ${(props) => (props.$small ? "6px" : "8px")};
+  height: ${(props) => (props.$small ? "6px" : "8px")};
   border-radius: 50%;
   background-color: #ffffff;
+  transform: translate(-50%, -50%);
 `;
 
 /* 아직 고르지 않은 회색 테두리 동그라미입니다. */
@@ -763,13 +834,6 @@ const QuestionBlock = styled.section`
   display: flex;
   flex-direction: column;
   gap: 8px;
-`;
-
-const Question = styled.p`
-  margin: 0 0 4px;
-  color: #282828;
-  font-size: 14px;
-  font-weight: 600;
 `;
 
 const Choice = styled.button`
@@ -885,25 +949,27 @@ const Notice = styled.div`
   background-color: #f7f4ef;
 `;
 
+/* 피그마의 16px 안내 기호. 원과 i 를 각 그림의 원래 크기로 겹칩니다. */
 const InfoMark = styled.span`
   position: relative;
   flex-shrink: 0;
   width: 16px;
   height: 16px;
   margin-top: 2px;
-
-  img:first-child {
-    width: 14.5px;
-    height: 14.5px;
-  }
 `;
 
-const InfoStem = styled.img`
+const InfoCircle = styled.img`
   position: absolute;
-  top: 3px;
-  left: 6.5px;
-  width: 1.5px;
-  height: 8px;
+  top: 0.75px;
+  left: 0.75px;
+  max-width: none;
+`;
+
+const InfoGlyph = styled.img`
+  position: absolute;
+  top: 4.05px;
+  left: 7.24px;
+  max-width: none;
 `;
 
 const NoticeText = styled.p`
@@ -942,4 +1008,9 @@ const NextButton = styled.button`
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
+
+  &:disabled {
+    background-color: #f4d5ce;
+    cursor: default;
+  }
 `;

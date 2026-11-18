@@ -1,15 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
-import backButtonIcon from "../../assets/icons/shelters/detail/back-button.svg";
+import backButtonIcon from "../../assets/icons/shelters/detail/back-button-light.svg";
 import chevronIcon from "../../assets/icons/shelters/detail/chevron.svg";
 import dividerIcon from "../../assets/icons/shelters/detail/divider.svg";
 import mapPawIcon from "../../assets/icons/shelters/detail/map-paw.svg";
 import pinIcon from "../../assets/icons/shelters/detail/pin.svg";
 import pawIcon from "../../assets/icons/shelters/detail/paw.svg";
 import pawFilledIcon from "../../assets/icons/shelters/detail/paw-filled.svg";
-import { findShelterRecruitingPosts, SHELTER_DETAIL } from "../../dummyData/shelters/shelterDummy.js";
-import { deleteShelterBookmark, getShelterAnimalStats, getShelterDetail, getShelterPostings, postShelterBookmark } from "../../api/shelters.js";
+import { SHELTER_DETAIL } from "../../dummyData/shelters/shelterDummy.js";
+import { getShelterAnimalStats, getShelterDetail, getShelterPostings } from "../../api/shelters.js";
+import { setSavedFavorite } from "../../api/activities.js";
+import { loadKakaoMap } from "../../lib/kakaoMap.js";
+import { findCoordsByAddress } from "../../lib/kakaoAddress.js";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const ANIMAL_LABELS = { DOG: "강아지", CAT: "고양이" };
@@ -36,7 +39,7 @@ function toPostingCard(post) {
   };
 }
 
-/* 상세 응답을 화면에 쓰던 시설 정보 모양으로 맞춥니다. 사진은 응답에 없어 기존 사진을 유지합니다. */
+/* 상세 응답을 화면에 쓰던 시설 정보 모양으로 맞춥니다. 위쪽 사진은 imageUrls를 씁니다. */
 function toShelterView(data) {
   const region = [data.region?.sido, data.region?.sigungu].filter(Boolean).join(" ");
   const badges = [];
@@ -68,7 +71,75 @@ function toShelterView(data) {
     info: info.length ? info : SHELTER_DETAIL.info,
     posts,
     bookmarked: Boolean(data.bookmarked),
+    latitude: data.latitude ?? null,
+    longitude: data.longitude ?? null,
+    photos: (Array.isArray(data.imageUrls) ? data.imageUrls : [])
+      .filter(Boolean)
+      .map((src, index) => ({ id: index + 1, src, position: "center" })),
   };
+}
+
+/* 숫자로 된 좌표만 남깁니다. */
+function toCoords(latitude, longitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { latitude: lat, longitude: lng };
+}
+
+/* 시설 위치 칸에 해당 좌표의 카카오 지도를 올립니다. 좌표가 없으면 주소로 찾습니다. */
+function LocationMap({ address, latitude, longitude }) {
+  const boxRef = useRef(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const known = toCoords(latitude, longitude);
+    if (!known && !address) {
+      setFailed(true);
+      return undefined;
+    }
+
+    let ignore = false;
+    setFailed(false);
+
+    async function init() {
+      try {
+        const kakao = await loadKakaoMap();
+        const coords = known ?? (await findCoordsByAddress(address));
+        if (ignore || !boxRef.current) return;
+
+        const position = new kakao.maps.LatLng(coords.latitude, coords.longitude);
+        const map = new kakao.maps.Map(boxRef.current, {
+          center: position,
+          level: 3,
+        });
+        map.setDraggable(false);
+        map.setZoomable(false);
+        new kakao.maps.Marker({ position, map });
+        map.relayout();
+        requestAnimationFrame(() => map.relayout());
+      } catch {
+        if (!ignore) setFailed(true);
+      }
+    }
+
+    init();
+    return () => {
+      ignore = true;
+      if (boxRef.current) boxRef.current.innerHTML = "";
+    };
+  }, [address, latitude, longitude]);
+
+  if (failed) {
+    return (
+      <MapPreview>
+        <img src={mapPawIcon} alt="" />
+        <MapLabel>지도 사진</MapLabel>
+      </MapPreview>
+    );
+  }
+
+  return <MapCanvas ref={boxRef} aria-label="시설 위치 지도" />;
 }
 
 /* 지도에서 보호소 이름을 눌렀을 때 열리는 보호시설 상세입니다. */
@@ -84,10 +155,10 @@ export default function ShelterDetail() {
   const [detail, setDetail] = useState(null);
   const [postings, setPostings] = useState(null);
   const [animalStats, setAnimalStats] = useState(null);
-  const shelter = detail ?? SHELTER_DETAIL;
-  const shelterId = shelterIdParam ?? shelter.id;
-  const posts = postings ?? detail?.posts ?? findShelterRecruitingPosts(SHELTER_DETAIL.id);
-  const photos = shelter.photos;
+  const shelter = detail;
+  const shelterId = shelterIdParam;
+  const posts = postings ?? detail?.posts ?? [];
+  const photos = shelter?.photos ?? [];
   const frameRef = useRef(null);
   const dragRef = useRef(null);
   const photoIndexRef = useRef(0);
@@ -102,11 +173,13 @@ export default function ShelterDetail() {
     const observer = new ResizeObserver(measure);
     observer.observe(frame);
     return () => observer.disconnect();
-  }, []);
+  }, [photos.length]);
 
-  /* 보호시설 상세를 가져옵니다. 실패하면 기존 임시 정보를 그대로 보여 줍니다. */
+  /* 보호시설 상세를 가져옵니다. 오기 전에는 임시 시설을 보여 주지 않습니다. */
   useEffect(() => {
     if (!shelterId) return undefined;
+    setDetail(null);
+    setAnimalStats(null);
     let ignore = false;
     getShelterDetail(shelterId)
       .then((result) => {
@@ -120,9 +193,10 @@ export default function ShelterDetail() {
     };
   }, [shelterId]);
 
-  /* 현재 모집 중 목록은 시설 모집공고 목록으로 채웁니다. 실패하면 상세나 임시 목록을 유지합니다. */
+  /* 현재 모집 중 목록은 시설 모집공고 목록으로 채웁니다. */
   useEffect(() => {
     if (!shelterId) return undefined;
+    setPostings(null);
     let ignore = false;
     getShelterPostings(shelterId)
       .then((result) => {
@@ -150,18 +224,14 @@ export default function ShelterDetail() {
     };
   }, [shelterId]);
 
-  /* 빈 발바닥은 관심 시설 저장, 채워진 발바닥은 관심 시설 해제입니다. */
+  /* 발바닥은 시설과 그 시설의 모집 공고를 함께 저장하거나 해제합니다. */
   async function toggleBookmark() {
     if (savingBookmark) return;
     setSavingBookmark(true);
+    const postingIds = (posts ?? []).map((post) => post.id).filter((id) => id != null);
     try {
-      if (favorite) {
-        await deleteShelterBookmark(shelterId);
-        setFavorite(false);
-        return;
-      }
-      const result = await postShelterBookmark(shelterId);
-      if (result?.data?.bookmarked) setFavorite(true);
+      await setSavedFavorite({ shelterId, postingIds, saved: favorite });
+      setFavorite(!favorite);
     } catch (error) {
       if (error.status === 409) setFavorite(true);
       if (error.status === 404) setFavorite(false);
@@ -244,6 +314,16 @@ export default function ShelterDetail() {
     }
   }
 
+  if (!shelter) {
+    return (
+      <Screen>
+        <BackButton type="button" aria-label="뒤로 가기" onClick={() => navigate(-1)}>
+          <img src={backButtonIcon} alt="" />
+        </BackButton>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       {/* 화면 위쪽을 가득 채우는 가로로 긴 직사각형 사진입니다. 양옆으로 밀어 장을 바꿉니다. */}
@@ -274,9 +354,11 @@ export default function ShelterDetail() {
           <img src={backButtonIcon} alt="" />
         </BackButton>
         {/* 사진 오른쪽 아래, 반투명한 어두운 알약 모양에 지금 장과 전체 장 수를 적습니다. */}
-        <PhotoCount>
-          {photoIndex + 1} / {photos.length}
-        </PhotoCount>
+        {photos.length > 0 && (
+          <PhotoCount>
+            {photoIndex + 1} / {photos.length}
+          </PhotoCount>
+        )}
       </Hero>
 
       <Content>
@@ -358,13 +440,14 @@ export default function ShelterDetail() {
 
           <Divider src={dividerIcon} alt="" />
 
-          {/* 시설 위치: 회색 둥근 사각형 안에 발바닥과 안내 문구를 세로로 쌓습니다. */}
+          {/* 시설 위치: 해당 시설 좌표의 지도를 둥근 칸에 보여 줍니다. */}
           <Section>
             <SectionTitle>시설 위치</SectionTitle>
-            <MapPreview>
-              <img src={mapPawIcon} alt="" />
-              <MapLabel>{shelter.mapLabel}</MapLabel>
-            </MapPreview>
+            <LocationMap
+              address={shelter.address}
+              latitude={shelter.latitude}
+              longitude={shelter.longitude}
+            />
             <AddressRow>
               <img src={pinIcon} alt="" />
               <Address>{shelter.address}</Address>
@@ -397,6 +480,7 @@ export default function ShelterDetail() {
 
 /* 페이지 전체. 아래 고정 막대에 글이 가리지 않도록 밑을 비워 둡니다. */
 const Screen = styled.div`
+  position: relative;
   min-height: 100dvh;
   padding-bottom: 108px;
   overflow-x: hidden;
@@ -447,12 +531,12 @@ const HeroPhoto = styled.img`
   pointer-events: none;
 `;
 
-/* 위치만 잡고, 원과 그림자와 꺾쇠는 아이콘 파일 그대로 둡니다. */
+/* 화면 왼쪽 위에 고정합니다. 앱 화면이 가운데일 때도 사진 위 같은 자리에 둡니다. */
 const BackButton = styled.button`
-  position: absolute;
+  position: fixed;
   top: 16px;
-  left: 20px;
-  z-index: 1;
+  left: max(20px, calc(50vw - 195px + 20px));
+  z-index: 6;
   border: 0;
   padding: 0;
   background: transparent;
@@ -654,7 +738,16 @@ const Chevron = styled.span`
   transform: rotate(-90deg);
 `;
 
-/* 지도가 들어가기 전, 회색으로 채운 둥근 사각형입니다. */
+/* 시설 위치가 들어가는 둥근 칸입니다. 지도가 채워지기 전에는 회색으로 둡니다. */
+const MapCanvas = styled.div`
+  height: 117px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 10px;
+  background-color: #dcdcdc;
+`;
+
+/* 지도를 찾지 못했을 때 보여 주는 회색 둥근 사각형입니다. */
 const MapPreview = styled.div`
   display: flex;
   flex-direction: column;

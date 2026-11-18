@@ -6,7 +6,8 @@ import dividerIcon from "../../../assets/icons/shelters/detail/divider.svg";
 import pawIcon from "../../../assets/icons/shelters/detail/paw.svg";
 import pawFilledIcon from "../../../assets/icons/shelters/detail/paw-filled.svg";
 import { findFosterPost } from "../../../dummyData/shelters/fosters/fosterDummy.js";
-import { deletePostingBookmark, getPostingDetail, postPostingBookmark } from "../../../api/postings.js";
+import { getPostingDetail } from "../../../api/postings.js";
+import { setSavedFavorite } from "../../../api/activities.js";
 
 /* 지도에서 임시보호 카드를 눌렀을 때 열리는 임시보호 공고 상세입니다. */
 export default function FosterDetail() {
@@ -53,18 +54,17 @@ export default function FosterDetail() {
     };
   }, [postId]);
 
-  /* 빈 발바닥은 관심 공고 저장, 채워진 발바닥은 관심 공고 해제입니다. */
+  /* 발바닥은 공고와 그 보호시설을 함께 저장하거나 해제합니다. */
   async function saveBookmark() {
     if (savingBookmark) return;
     setSavingBookmark(true);
     try {
-      if (favorite) {
-        await deletePostingBookmark(post.id);
-        setFavorite(false);
-        return;
-      }
-      const result = await postPostingBookmark(post.id);
-      if (result?.data?.bookmarked) setFavorite(true);
+      await setSavedFavorite({
+        shelterId: post.shelterId,
+        postingIds: [post.id],
+        saved: favorite,
+      });
+      setFavorite(!favorite);
     } catch (error) {
       if (error.status === 409) setFavorite(true);
       if (error.status === 404) setFavorite(false);
