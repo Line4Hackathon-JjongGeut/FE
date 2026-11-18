@@ -93,6 +93,7 @@ const MetaIcon = styled.img`
 
 const Tags = styled.span`
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
   margin-top: 15px;
 `;
@@ -104,4 +105,5 @@ const Tag = styled.span`
   color: #258314;
   font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
 `;
