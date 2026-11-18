@@ -1,5 +1,5 @@
 /* 추천 API 응답 -> 추천 카드가 쓰는 값 */
-function formatDistance(km) {
+export function formatDistance(km) {
   if (km === null || km === undefined) return null;
   return km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
 }
