@@ -20,7 +20,7 @@ import {
   isDraftChanged,
 } from "../../dummyData/mypage/preferenceDraft.js";
 import { TIME_SLOTS, FREQUENCIES, EXPERIENCE_LEVELS } from "../../dummyData/onboarding/preferenceOptions.js";
-import { CURRENT_LOCATION } from "../../dummyData/onboarding/regionDummy.js";
+import { useCurrentAddress } from "../../hooks/useCurrentAddress.js";
 import { toggleItem } from "../../utils/toggleItem.js";
 import dogIcon from "../../assets/icons/mypage/animal-dog.svg";
 import catIcon from "../../assets/icons/mypage/animal-cat.svg";
@@ -39,12 +39,18 @@ export default function PreferenceEdit() {
   // 고치는 값은 화면 state와 임시 사본(draft)에 같이 넣어 둠
   const [form, setForm] = useState(() => getDraft());
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const { findCurrentAddress, isLocating, locateError } = useCurrentAddress();
 
   function change(data) {
     setForm(updateDraft(data));
   }
 
   const canSave = form.animal !== null && form.region !== null && form.days.length > 0;
+
+  async function handleLocate() {
+    const address = await findCurrentAddress();
+    if (address) navigate("/mypage/preferences/region/map", { state: { address } });
+  }
 
   function handleSave() {
     saveDraft();
@@ -97,12 +103,10 @@ export default function PreferenceEdit() {
               <Placeholder>활동 지역을 설정해 주세요</Placeholder>
             )}
           </RegionField>
-          <LocateButton
-            type="button"
-            onClick={() => navigate("/mypage/preferences/region/map", { state: { address: CURRENT_LOCATION } })}
-          >
-            현재 위치로 찾기
+          <LocateButton type="button" onClick={handleLocate} disabled={isLocating}>
+            {isLocating ? "현재 위치 확인 중..." : "현재 위치로 찾기"}
           </LocateButton>
+          {locateError && <LocateError role="alert">{locateError}</LocateError>}
         </Section>
 
         <Divider />
@@ -249,6 +253,17 @@ const LocateButton = styled.button`
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+`;
+
+const LocateError = styled.p`
+  color: #d9534f;
+  font-size: 12px;
+  font-weight: 600;
 `;
 
 const TimeGrid = styled.div`
