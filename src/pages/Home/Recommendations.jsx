@@ -6,9 +6,8 @@ import PreferenceSummary from "../../components/home/PreferenceSummary.jsx";
 import RecommendListCard from "../../components/home/RecommendListCard.jsx";
 import RecommendEmpty from "../../components/home/RecommendEmpty.jsx";
 import { RECOMMENDED_POSTS } from "../../dummyData/home/homeDummy.js";
-import { getPreferences } from "../../dummyData/onboarding/preferences.js";
 import { chunk } from "../../utils/chunk.js";
-import { formatPreferenceSummary } from "../../utils/preferenceSummary.js";
+import { useMyPreferences } from "../../hooks/useMyPreferences.js";
 import { readPageIndex } from "../../utils/pageParam.js";
 
 const CARDS_PER_PAGE = 4;
@@ -19,7 +18,9 @@ export default function Recommendations() {
   const [searchParams, setSearchParams] = useSearchParams();
   const pages = chunk(RECOMMENDED_POSTS, CARDS_PER_PAGE);
   const page = readPageIndex(searchParams, pages.length);
-  const hasPreferences = formatPreferenceSummary(getPreferences()) !== null;
+  const { status, summary } = useMyPreferences();
+  const isReady = status === "ready";
+  const hasPreferences = summary !== null;
 
   function changePage(index) {
     setSearchParams(index > 0 ? { page: String(index + 1) } : {}, { replace: true });
@@ -32,7 +33,8 @@ export default function Recommendations() {
 
       <Body>
         <PreferenceSummary />
-        {hasPreferences ? (
+        {/* 참여 조건을 불러오기 전에는 카드도 빈 화면 안내도 보여 주지 않음 */}
+        {!isReady ? null : hasPreferences ? (
           <Cards>
             {pages[page].map((post) => (
               <RecommendListCard key={post.id} post={post} />
@@ -43,7 +45,7 @@ export default function Recommendations() {
         )}
       </Body>
 
-      {hasPreferences && (
+      {isReady && hasPreferences && (
         <DotsArea>
           <PageDots total={pages.length} current={page} onSelect={changePage} size={7} gap={8} />
         </DotsArea>

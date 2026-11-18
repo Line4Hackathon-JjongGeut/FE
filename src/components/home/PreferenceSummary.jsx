@@ -1,19 +1,29 @@
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import { getPreferences } from "../../dummyData/onboarding/preferences.js";
 import { startDraft } from "../../dummyData/mypage/preferenceDraft.js";
-import { formatPreferenceSummary } from "../../utils/preferenceSummary.js";
+import { useMyPreferences } from "../../hooks/useMyPreferences.js";
 import filterIcon from "../../assets/icons/home/icon-filter.svg";
 import catImage from "../../assets/images/onboarding/animal-cat.svg";
 
 /* "내 참여 조건" 박스. 조건이 있으면 마이페이지 추천 조건 수정으로, 없으면 온보딩으로 */
 export default function PreferenceSummary() {
   const navigate = useNavigate();
-  const summary = formatPreferenceSummary(getPreferences());
+  const { status, summary, retry } = useMyPreferences();
 
   function openPreferenceEdit() {
     startDraft();
     navigate("/mypage/preferences");
+  }
+
+  if (status !== "ready") {
+    return (
+      <Box type="button" onClick={retry} disabled={status === "loading"}>
+        <Text>
+          <Label>내 참여 조건</Label>
+          <Summary>{status === "loading" ? "불러오는 중..." : "불러오지 못했어요. 눌러서 다시 시도해 주세요."}</Summary>
+        </Text>
+      </Box>
+    );
   }
 
   if (!summary) {
@@ -52,6 +62,10 @@ const Box = styled.button`
   background-color: #f7f1e7;
   text-align: left;
   cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
 `;
 
 const Text = styled.span`
