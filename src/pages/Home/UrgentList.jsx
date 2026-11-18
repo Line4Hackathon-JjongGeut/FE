@@ -3,7 +3,8 @@ import styled from "styled-components";
 import BackHeader from "../../components/auth/BackHeader.jsx";
 import PageDots from "../../components/auth/PageDots.jsx";
 import UrgentDetailCard from "../../components/home/UrgentDetailCard.jsx";
-import { URGENT_POSTS } from "../../dummyData/home/homeDummy.js";
+import { useMyPreferences } from "../../hooks/useMyPreferences.js";
+import { useUrgentPosts } from "../../hooks/useUrgentPosts.js";
 import { chunk } from "../../utils/chunk.js";
 import { readPageIndex } from "../../utils/pageParam.js";
 
@@ -21,7 +22,13 @@ export default function UrgentList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filterParam = searchParams.get("filter");
   const filter = FILTERS.some((item) => item.id === filterParam) ? filterParam : "all";
-  const posts = filter === "all" ? URGENT_POSTS : URGENT_POSTS.filter((post) => post.type === filter);
+  const { status: preferenceStatus, preferences } = useMyPreferences();
+  const urgent = useUrgentPosts({
+    latitude: preferences.region?.latitude,
+    longitude: preferences.region?.longitude,
+    enabled: preferenceStatus !== "loading",
+  });
+  const posts = filter === "all" ? urgent.posts : urgent.posts.filter((post) => post.type === filter);
   const pages = chunk(posts, CARDS_PER_PAGE);
   const page = readPageIndex(searchParams, pages.length);
 
@@ -66,14 +73,23 @@ export default function UrgentList() {
             <UrgentDetailCard
               key={post.id}
               post={post}
-              onDetailClick={() => navigate(`/shelters/${post.shelterId}`)}
+              onDetailClick={() => navigate(post.detailPath)}
             />
           ))}
-          {posts.length === 0 && <Empty>지금은 급하게 도움이 필요한 곳이 없어요.</Empty>}
+          {urgent.status === "loading" && <Empty>긴급 모집을 불러오는 중...</Empty>}
+          {urgent.status === "error" && (
+            <Empty role="alert">
+              긴급 모집을 불러오지 못했어요.{" "}
+              <RetryButton type="button" onClick={urgent.retry}>
+                다시 시도
+              </RetryButton>
+            </Empty>
+          )}
+          {urgent.status === "ready" && posts.length === 0 && <Empty>지금은 급하게 도움이 필요한 곳이 없어요.</Empty>}
         </Cards>
       </Body>
 
-      {pages.length > 0 && (
+      {pages.length > 1 && (
         <DotsArea>
           <PageDots total={pages.length} current={page} onSelect={changePage} size={7} gap={8} />
         </DotsArea>
