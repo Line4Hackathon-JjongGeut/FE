@@ -53,6 +53,11 @@ function mapList(list, map) {
   return (list ?? []).map((item) => map[item]).filter(Boolean);
 }
 
+function toTimeSlotRequest(timeSlots) {
+  const list = mapList(timeSlots, TIME_SLOT_TO_API);
+  return list.includes("ALL_DAY") ? ["ALL_DAY"] : list;
+}
+
 export function toRegionRequest(region) {
   if (!region) return undefined;
   const [firstWord, secondWord] = region.road.split(" ");
@@ -77,7 +82,7 @@ export function toProfileRequest(preferences) {
   const request = {
     interestAnimals: ANIMAL_TO_API[preferences.animal] ?? [],
     availableDays: mapList(preferences.days, DAY_TO_API),
-    availableTimeSlots: mapList(preferences.timeSlots, TIME_SLOT_TO_API),
+    availableTimeSlots: toTimeSlotRequest(preferences.timeSlots),
     interestCategories: mapList(preferences.activityTypes, CATEGORY_TO_API),
   };
   const region = toRegionRequest(preferences.region);
