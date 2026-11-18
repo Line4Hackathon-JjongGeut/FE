@@ -22,3 +22,18 @@ export function login({ loginId, password }) {
 export function logout() {
   return APIService.public.post("/auth/logout");
 }
+
+
+/*
+  아이디 중복 확인.
+*/
+export function checkLoginIdAvailable(loginId) {
+  return APIService.public.get(`/auth/login-id-availability?loginId=${encodeURIComponent(loginId)}`);
+}
+
+/*
+  닉네임 중복 확인.
+*/
+export function checkNicknameAvailable(nickname) {
+  return APIService.public.get(`/auth/nickname-availability?nickname=${encodeURIComponent(nickname)}`);
+}

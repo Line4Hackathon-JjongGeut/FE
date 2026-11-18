@@ -1,24 +1,72 @@
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
-import styled from "styled-components";
+import styled, { css, keyframes } from "styled-components";
 import searchIcon from "../../assets/icons/map/search.svg";
 import checkIcon from "../../assets/icons/map/check.svg";
 import viewAllIcon from "../../assets/icons/map/view-all.svg";
 import pinIcon from "../../assets/icons/map/pin.svg";
 import calendarIcon from "../../assets/icons/map/calendar.svg";
-import photoPawIcon from "../../assets/icons/map/photo-paw.svg";
 import pawIcon from "../../assets/icons/map/paw-alt.svg";
 import pawFilledIcon from "../../assets/icons/map/paw-filled.svg";
 import animalInfoIcon from "../../assets/icons/map/animal-info.svg";
-import shelterPhoto from "../../assets/icons/map/shelter-photo.png";
-import { FILTERS, FILTER_COLORS, PLACES } from "../../dummyData/map/mapDummy.js";
-import { deleteShelterBookmark, getShelters, postShelterBookmark } from "../../api/shelters.js";
+import { FILTERS, FILTER_COLORS } from "../../dummyData/map/mapDummy.js";
+import { getPostingDetail } from "../../api/postings.js";
+import { getShelterPostings, getShelters } from "../../api/shelters.js";
+import { getBookmarkedPostings, getBookmarkedShelters, setSavedFavorite } from "../../api/activities.js";
 import { loadKakaoMap } from "../../lib/kakaoMap.js";
 
 const SEOUL = { lat: 37.5665, lng: 126.978 };
 
+const POSTING_CATEGORY = {
+  VOLUNTEER: "봉사",
+  DONATION: "후원",
+  FOSTER: "임시보호",
+};
+
+/* 공고 사진이 있으면 그걸 쓰고, 없으면 시설 썸네일을 씁니다. */
+function cardPhotos(shelter, posting) {
+  const urls = [
+    ...(Array.isArray(posting?.imageUrls) ? posting.imageUrls : []),
+    posting?.thumbnailUrl,
+    shelter?.thumbnailUrl,
+  ].filter(Boolean);
+  return [...new Set(urls)].map((src) => ({ src }));
+}
+
 const NAV_HEIGHT = 90;
+
+const SHEET_MS = 340;
+
+/* 카드 한 장이 화면 아래에서 올라옵니다. */
+const sheetRise = keyframes`
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+`;
+
+/* 카드 한 장이 화면 아래로 내려갑니다. */
+const sheetDrop = keyframes`
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+`;
+
+/* 가운데 정렬된 전체 목록도 아래로 내려갑니다. */
+const sheetDropCentered = keyframes`
+  from {
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    transform: translateX(-50%) translateY(100%);
+  }
+`;
 
 // 카드 종류에 맞는 상세 페이지로 이동합니다.
 function postPath(place) {
@@ -33,15 +81,25 @@ export default function Map() {
   const location = useLocation();
   const [filter, setFilter] = useState(location.state?.filter ?? null);
   const [expanded, setExpanded] = useState(false);
-  const [favorites, setFavorites] = useState(() => new Set());
   const [shelters, setShelters] = useState(null);
+  const [bookmarkedShelterIds, setBookmarkedShelterIds] = useState(null);
+  const [bookmarkedPostings, setBookmarkedPostings] = useState([]);
+  const [postingsByShelter, setPostingsByShelter] = useState({});
+  const [selectedShelterId, setSelectedShelterId] = useState(null);
+  const [riseKey, setRiseKey] = useState(0);
+  const [playRise, setPlayRise] = useState(false);
+  const [dropping, setDropping] = useState(false);
   const dragStartY = useRef(null);
-  const filterTimer = useRef(null);
+  const dropTimer = useRef(null);
+  const dropNextRef = useRef(null);
   const mapElementRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
   const closeRef = useRef(() => {});
+  const selectRef = useRef(() => {});
+  const markerPickRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
+  const [mapShown, setMapShown] = useState(false);
 
   /* 시트가 열려 있는 동안 하단 메뉴를 숨기고, 페이지를 떠나면 다시 보여 줍니다. */
   useEffect(() => {
@@ -49,7 +107,7 @@ export default function Map() {
     return () => setHideNav(false);
   }, [expanded, setHideNav]);
 
-  useEffect(() => () => clearTimeout(filterTimer.current), []);
+  useEffect(() => () => clearTimeout(dropTimer.current), []);
 
   /* 빈 지도 자리에 카카오 지도를 올립니다. 스크립트가 거절되면 빈 배경을 유지합니다. */
   useEffect(() => {
@@ -75,12 +133,15 @@ export default function Map() {
   }, []);
 
   const markerKey = (shelters ?? [])
-    .map((item) => `${Number(item.latitude)},${Number(item.longitude)}`)
+    .filter((item) => item.latitude != null && item.longitude != null)
+    .map((item) => `${item.shelterId}:${Number(item.latitude)},${Number(item.longitude)}`)
     .join("|");
 
-  /* 보호시설 좌표가 있으면 마커를 찍고, 없으면 서울을 중심으로 둡니다. */
+  const sheltersLoaded = shelters !== null;
+
+  /* 보호시설 좌표가 있으면 마커를 찍고, 없으면 서울을 중심으로 둡니다. 위치가 정해진 뒤에만 지도를 보여 줍니다. */
   useEffect(() => {
-    if (!mapReady || !mapRef.current || !window.kakao?.maps) return undefined;
+    if (!mapReady || !mapRef.current || !window.kakao?.maps || !sheltersLoaded) return undefined;
     const kakao = window.kakao;
     const map = mapRef.current;
     markersRef.current.forEach((marker) => marker.setMap(null));
@@ -88,145 +149,246 @@ export default function Map() {
     const points = markerKey
       .split("|")
       .filter(Boolean)
-      .map((pair) => {
-        const [lat, lng] = pair.split(",").map(Number);
-        return { lat, lng };
+      .map((token) => {
+        const [shelterId, coords] = token.split(":");
+        const [lat, lng] = (coords ?? "").split(",").map(Number);
+        return { shelterId, lat, lng };
       })
-      .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+      .filter((point) => point.shelterId && Number.isFinite(point.lat) && Number.isFinite(point.lng));
 
     if (!points.length) {
       markersRef.current = [];
       map.setCenter(new kakao.maps.LatLng(SEOUL.lat, SEOUL.lng));
       map.setLevel(8);
-      return undefined;
+    } else {
+      const bounds = new kakao.maps.LatLngBounds();
+      markersRef.current = points.map((point) => {
+        const position = new kakao.maps.LatLng(point.lat, point.lng);
+        bounds.extend(position);
+        const marker = new kakao.maps.Marker({ position });
+        marker.setMap(map);
+        kakao.maps.event.addListener(marker, "click", () => selectRef.current(point.shelterId));
+        return marker;
+      });
+
+      if (points.length === 1) {
+        map.setCenter(new kakao.maps.LatLng(points[0].lat, points[0].lng));
+        map.setLevel(5);
+      } else {
+        map.setBounds(bounds);
+      }
     }
 
-    const bounds = new kakao.maps.LatLngBounds();
-    markersRef.current = points.map((point) => {
-      const position = new kakao.maps.LatLng(point.lat, point.lng);
-      bounds.extend(position);
-      const marker = new kakao.maps.Marker({ position });
-      marker.setMap(map);
-      return marker;
-    });
-
-    if (points.length === 1) {
-      map.setCenter(new kakao.maps.LatLng(points[0].lat, points[0].lng));
-      map.setLevel(5);
-      return undefined;
-    }
-
-    map.setBounds(bounds);
+    map.relayout();
+    setMapShown(true);
+    requestAnimationFrame(() => map.relayout());
     return undefined;
-  }, [mapReady, markerKey]);
+  }, [mapReady, markerKey, sheltersLoaded]);
 
-  // 보호시설 API가 실패하면 기존 임시 데이터를 대신 사용합니다.
+  /* 보호시설 목록을 가져옵니다. 응답 전에는 카드를 보여 주지 않습니다. */
   useEffect(() => {
     let ignore = false;
 
     getShelters()
       .then((result) => {
-        if (ignore || !result?.isSuccess) return;
-        setShelters(result.data?.items ?? []);
+        if (ignore) return;
+        setShelters(result?.isSuccess ? result.data?.items ?? [] : []);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!ignore) setShelters([]);
+      });
 
     return () => {
       ignore = true;
     };
   }, []);
 
+  /* 즐겨찾기는 저장한 시설과, 저장한 공고의 시설을 함께 보여 줍니다. */
+  useEffect(() => {
+    let ignore = false;
+
+    Promise.all([
+      getBookmarkedShelters({ page: 0, size: 50 }).catch(() => null),
+      getBookmarkedPostings({ page: 0, size: 50 }).catch(() => null),
+    ]).then(([shelterResult, postingResult]) => {
+      if (ignore) return;
+      const shelters = shelterResult?.isSuccess ? shelterResult.data?.items ?? [] : [];
+      const postings = postingResult?.isSuccess ? postingResult.data?.items ?? [] : [];
+      setBookmarkedShelterIds(shelters.map((item) => item.shelterId));
+      setBookmarkedPostings(postings.map((item) => ({
+        postingId: item.postingId,
+        shelterId: item.shelterId,
+      })));
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const shelterIdsKey = (shelters ?? []).map((item) => item.shelterId).join("|");
+
+  /* 시설마다 가장 빠른 모집공고와 그 공고의 사진을 가져옵니다. */
+  useEffect(() => {
+    const ids = shelterIdsKey.split("|").filter(Boolean);
+    if (!ids.length) return undefined;
+    let ignore = false;
+
+    Promise.all(
+      ids.map(async (shelterId) => {
+        try {
+          const result = await getShelterPostings(shelterId, { page: 0, size: 1 });
+          const posting = result?.isSuccess ? result.data?.items?.[0] ?? null : null;
+          if (!posting?.postingId) return [shelterId, posting];
+          try {
+            const detail = await getPostingDetail(posting.postingId);
+            const imageUrls = detail?.isSuccess && Array.isArray(detail.data?.imageUrls)
+              ? detail.data.imageUrls.filter(Boolean)
+              : [];
+            return [shelterId, { ...posting, imageUrls }];
+          } catch {
+            return [shelterId, posting];
+          }
+        } catch {
+          return [shelterId, null];
+        }
+      }),
+    ).then((pairs) => {
+      if (!ignore) setPostingsByShelter(Object.fromEntries(pairs));
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [shelterIdsKey]);
+
+  /* 열려 있는 시트를 아래로 내린 뒤 다음 동작을 실행합니다. 닫힌 상태면 바로 실행합니다. */
+  function runAfterDrop(next) {
+    if (dropping) {
+      dropNextRef.current = next;
+      return;
+    }
+
+    const sheetOpen = expanded || Boolean(filter) || selectedShelterId != null;
+    if (!sheetOpen) {
+      next();
+      return;
+    }
+
+    setPlayRise(false);
+    setDropping(true);
+    dropNextRef.current = next;
+    clearTimeout(dropTimer.current);
+    dropTimer.current = setTimeout(() => {
+      setDropping(false);
+      const action = dropNextRef.current;
+      dropNextRef.current = null;
+      action?.();
+    }, SHEET_MS);
+  }
+
   /* 같은 필터를 다시 누르면 내려가고, 다른 필터를 누르면 내려간 뒤 새 카드가 올라옵니다. */
   function selectFilter(name) {
-    clearTimeout(filterTimer.current);
-    setExpanded(false);
-
     if (filter === name) {
-      setFilter(null);
+      runAfterDrop(() => {
+        setFilter(null);
+        setExpanded(false);
+        setSelectedShelterId(null);
+      });
       return;
     }
 
-    if (filter) {
-      setFilter(null);
-      filterTimer.current = setTimeout(() => setFilter(name), 280);
+    const openNext = () => {
+      setFilter(name);
+      setExpanded(false);
+      setSelectedShelterId(null);
+      setRiseKey((value) => value + 1);
+    };
+
+    if (expanded || filter || selectedShelterId != null) {
+      runAfterDrop(openNext);
       return;
     }
 
-    setFilter(name);
+    openNext();
   }
 
   function toggleFavorite(place) {
-    // API에서 불러온 보호시설만 서버 북마크를 변경합니다.
-    if (place.fromShelterList) {
-      toggleShelterBookmark(place);
-      return;
-    }
-
-    setFavorites((current) => {
-      const next = new Set(current);
-      if (next.has(place.id)) next.delete(place.id);
-      else next.add(place.id);
-      return next;
-    });
+    toggleShelterBookmark(place);
   }
 
   async function toggleShelterBookmark(place) {
     const shelterId = place.shelterId;
     const saved = Boolean(place.bookmarked);
+    const postingIds = [
+      ...bookmarkedPostings
+        .filter((item) => String(item.shelterId) === String(shelterId))
+        .map((item) => item.postingId),
+      place.postingId,
+    ].filter((id, index, list) => id != null && list.findIndex((item) => String(item) === String(id)) === index);
 
     try {
-      if (saved) await deleteShelterBookmark(shelterId);
-      else await postShelterBookmark(shelterId);
+      await setSavedFavorite({
+        shelterId,
+        postingIds: saved ? postingIds : [place.postingId].filter((id) => id != null),
+        saved,
+      });
 
+      setBookmarkedShelterIds((current) => {
+        const ids = (current ?? []).filter((id) => String(id) !== String(shelterId));
+        return saved ? ids : [shelterId, ...ids];
+      });
+      setBookmarkedPostings((current) => {
+        const rest = current.filter((item) => String(item.shelterId) !== String(shelterId));
+        if (saved || place.postingId == null) return rest;
+        return [{ postingId: place.postingId, shelterId }, ...rest];
+      });
       setShelters((current) =>
         current?.map((item) =>
-          item.shelterId === shelterId
-            ? { ...item, bookmarked: !saved }
-            : item,
+          item.shelterId === shelterId ? { ...item, bookmarked: !saved } : item,
         ) ?? current,
       );
-    } catch (error) {
-      // 이미 저장/해제된 항목이면 서버 상태에 맞춰 동기화합니다.
-      if (error?.status !== 409 && error?.status !== 404) return;
-      setShelters((current) =>
-        current?.map((item) =>
-          item.shelterId === shelterId
-            ? { ...item, bookmarked: error.status === 409 }
-            : item,
-        ) ?? current,
-      );
+    } catch {
+      /* 저장에 실패하면 목록은 그대로 둡니다. */
     }
   }
 
-  const shelterPlaces = (shelters ?? []).map((item) => ({
-    id: item.shelterId,
-    shelterId: item.shelterId,
-    title: item.name,
-    shelter: [item.region?.sido, item.region?.sigungu].filter(Boolean).join(" "),
-    address: item.address,
-    bookmarked: item.bookmarked,
-    fromShelterList: true,
-    photos: [
-      { label: "시설 사진" },
-      { label: "시설 사진" },
-      { label: "시설 사진" },
-    ],
-  }));
+  function isBookmarkedShelter(shelterId) {
+    const key = String(shelterId);
+    if ((bookmarkedShelterIds ?? []).some((id) => String(id) === key)) return true;
+    return bookmarkedPostings.some((item) => String(item.shelterId) === key);
+  }
 
-  const showShelters =
-    shelters !== null &&
-    (filter === null || filter === "전체" || filter === "즐겨찾기");
-  const source = showShelters ? shelterPlaces : PLACES;
+  function bookmarkOrder(shelterId) {
+    const index = (bookmarkedShelterIds ?? []).findIndex((id) => String(id) === String(shelterId));
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  }
 
-  const places = source.filter((place) => {
-    if (!filter || filter === "전체") return true;
-    if (filter === "즐겨찾기") {
-      return place.fromShelterList
-        ? Boolean(place.bookmarked)
-        : favorites.has(place.id);
-    }
-    return place.category === filter;
+  const shelterPlaces = (shelters ?? []).map((item) => {
+    const posting = postingsByShelter[item.shelterId];
+    return {
+      id: item.shelterId,
+      shelterId: item.shelterId,
+      title: posting?.title ?? "",
+      postingId: posting?.postingId,
+      category: POSTING_CATEGORY[posting?.postingType],
+      shelter: item.name,
+      address: item.address,
+      bookmarked: isBookmarkedShelter(item.shelterId),
+      photos: cardPhotos(item, posting),
+    };
   });
+
+  const places = shelterPlaces
+    .filter((place) => {
+      if (!filter || filter === "전체") return true;
+      if (filter === "즐겨찾기") return place.bookmarked;
+      return place.category === filter;
+    })
+    .sort((a, b) => {
+      if (filter !== "즐겨찾기") return 0;
+      return bookmarkOrder(a.shelterId) - bookmarkOrder(b.shelterId);
+    });
 
   /* 손잡이를 위로 밀면 열리고, 아래로 밀면 닫힙니다. 거의 움직이지 않고 누르면 열림과 닫힘이 바뀝니다. */
   function handleDragStart(event) {
@@ -241,22 +403,68 @@ export default function Map() {
     else setExpanded((open) => !open);
   }
 
-  const showingPreview = Boolean(filter) && places.length > 0;
+  const selectedPlace = selectedShelterId == null
+    ? null
+    : shelterPlaces.find((place) => String(place.shelterId) === String(selectedShelterId)) ?? null;
+  const showingPreview = Boolean(selectedPlace) || (Boolean(filter) && places.length > 0);
+  const emptyPreview = Boolean(filter) && places.length === 0 && !selectedPlace;
+  const oneCard = !expanded && (showingPreview || emptyPreview);
+  const visiblePlaces = expanded ? places : selectedPlace ? [selectedPlace] : places.slice(0, 1);
 
-  /* 올라온 시트의 바깥 배경을 누르면 시트가 내려가고 선택된 필터도 해제됩니다. */
+  /* 카드 한 장이 새로 열릴 때마다 애니메이션을 껐다가 다시 켜서 아래서 위로 올라오게 합니다. */
+  useLayoutEffect(() => {
+    setPlayRise(false);
+  }, [oneCard, riseKey]);
+
+  useLayoutEffect(() => {
+    if (!oneCard || playRise || dropping) return;
+    setPlayRise(true);
+  }, [oneCard, riseKey, playRise, dropping]);
+
+  /* 핀을 누르면 그 시설 카드 한 장만 올립니다. 지도 클릭이 바로 따라와도 카드가 닫히지 않게 합니다. */
+  function selectShelter(shelterId) {
+    markerPickRef.current = true;
+    window.setTimeout(() => {
+      markerPickRef.current = false;
+    }, SHEET_MS);
+    const sameCard = !expanded && String(selectedShelterId) === String(shelterId);
+    const openCard = () => {
+      setSelectedShelterId(shelterId);
+      setExpanded(false);
+      setRiseKey((value) => value + 1);
+    };
+
+    if (sameCard) {
+      setRiseKey((value) => value + 1);
+      return;
+    }
+
+    if (expanded || filter || selectedShelterId != null) {
+      runAfterDrop(openCard);
+      return;
+    }
+
+    openCard();
+  }
+
+  /* 올라온 시트의 바깥 배경을 누르면 시트가 아래로 내려가고 선택된 필터와 핀 카드도 해제됩니다. */
   function closeFromBackground() {
-    if (!expanded && !filter) return;
-    clearTimeout(filterTimer.current);
-    setExpanded(false);
-    setFilter(null);
+    if (markerPickRef.current) return;
+    if (!dropping && !expanded && !filter && selectedShelterId == null) return;
+    runAfterDrop(() => {
+      setExpanded(false);
+      setFilter(null);
+      setSelectedShelterId(null);
+    });
   }
 
   closeRef.current = closeFromBackground;
+  selectRef.current = selectShelter;
 
   return (
     <Screen>
       {/* 카카오 지도. 불러오지 못하면 뒤의 빈 배경이 그대로 보입니다. */}
-      <MapArea ref={mapElementRef} aria-label="지도 영역" onClick={closeFromBackground} />
+      <MapArea ref={mapElementRef} $ready={mapShown} aria-label="지도 영역" onClick={closeFromBackground} />
 
       <Top onClick={(event) => event.target === event.currentTarget && closeFromBackground()}>
         {/* 지역, 보호 시설 이름 검색 */}
@@ -281,8 +489,8 @@ export default function Map() {
         </Filters>
       </Top>
 
-      {/* 필터가 없을 때만 전체보기 버튼이 보입니다. */}
-      {!expanded && !filter && (
+      {/* 필터나 핀 카드가 없을 때만 전체보기 버튼이 보입니다. */}
+      {!expanded && !showingPreview && (
         <ViewAll type="button" onClick={() => setExpanded(true)}>
           <Icon src={viewAllIcon} alt="" />
           전체보기
@@ -293,7 +501,9 @@ export default function Map() {
       <Sheet
         $expanded={expanded}
         $preview={showingPreview}
-        $empty={Boolean(filter) && places.length === 0}
+        $empty={emptyPreview}
+        $rise={playRise}
+        $drop={dropping}
       >
         <Handle
           aria-label={expanded ? "목록 접기" : "목록 펼치기"}
@@ -302,21 +512,27 @@ export default function Map() {
         >
           <Grip />
         </Handle>
-        <List>
-          {places.length === 0 ? (
+        <List $preview={showingPreview && !expanded}>
+          {shelters === null ? null : visiblePlaces.length === 0 ? (
             <Empty>
               {filter === "즐겨찾기"
                 ? "즐겨찾기한 활동이 없습니다."
                 : "조건에 맞는 활동이 없습니다."}
             </Empty>
           ) : (
-            (expanded ? places : places.slice(0, 1)).map((place) => (
+            visiblePlaces.map((place) => (
               <PlaceCard
                 key={place.id}
                 place={place}
-                favorite={place.fromShelterList ? Boolean(place.bookmarked) : favorites.has(place.id)}
+                favorite={Boolean(place.bookmarked)}
                 onToggleFavorite={toggleFavorite}
-                onOpenPost={() => navigate(place.fromShelterList ? `/shelters/${place.shelterId}` : postPath(place))}
+                onOpenPost={() =>
+                  navigate(
+                    place.postingId
+                      ? postPath({ id: place.postingId, category: place.category })
+                      : `/shelters/${place.shelterId}`,
+                  )
+                }
                 onOpenShelter={() => navigate(`/shelters/${place.shelterId}`)}
               />
             ))
@@ -384,18 +600,11 @@ function PlaceCard({ place, favorite, onToggleFavorite, onOpenPost, onOpenShelte
         </>
       )}
 
-      {/* 첫 칸은 보호소 사진, 나머지는 사진이 생기기 전의 자리 표시 */}
+      {/* 공고와 시설 응답에 있는 사진만 보여 줍니다. */}
       <Photos>
-        {(place.photos ?? []).map((photo, index) =>
-          photo.image ? (
-            <PhotoImage key={`${place.id}-${index}`} src={shelterPhoto} alt="행복한동물보호소" />
-          ) : (
-            <Photo key={`${place.id}-${index}`}>
-              <Icon src={photoPawIcon} alt="" />
-              {photo.label}
-            </Photo>
-          ),
-        )}
+        {(place.photos ?? []).map((photo) => (
+          <PhotoImage key={`${place.id}-${photo.src}`} src={photo.src} alt="" />
+        ))}
       </Photos>
     </Card>
   );
@@ -405,12 +614,13 @@ const Screen = styled.div`
   position: relative;
   height: calc(100dvh - ${NAV_HEIGHT}px);
   overflow: hidden;
-  background-color: #f4efe6;
+  background-color: #ffffff;
 `;
 
 const MapArea = styled.div`
   position: absolute;
   inset: 0;
+  visibility: ${({ $ready }) => ($ready ? "visible" : "hidden")};
 `;
 
 const Top = styled.div`
@@ -483,22 +693,34 @@ const ViewAll = styled.button`
 `;
 
 const Sheet = styled.section`
-  position: fixed;
-  bottom: ${({ $expanded }) => ($expanded ? "0" : `${NAV_HEIGHT}px`)};
-  left: 50%;
+  position: ${({ $expanded }) => ($expanded ? "fixed" : "absolute")};
+  right: 0;
+  bottom: 0;
+  left: ${({ $expanded }) => ($expanded ? "50%" : "0")};
   z-index: 20;
   display: flex;
   flex-direction: column;
-  width: min(100%, 390px);
+  width: ${({ $expanded }) => ($expanded ? "min(100%, 390px)" : "100%")};
   height: ${({ $expanded, $preview, $empty }) =>
-    $expanded ? "calc(100dvh - 40px)" : $preview ? "320px" : $empty ? "120px" : "36px"};
+    $expanded ? "calc(100dvh - 40px)" : $preview ? "auto" : $empty ? "120px" : "36px"};
   overflow: hidden;
   border-radius: 20px 20px 0 0;
   background-color: #ffffff;
-  transform: translateX(-50%);
-  transition:
-    height 0.28s ease,
-    bottom 0.28s ease;
+  transform: ${({ $expanded }) => ($expanded ? "translateX(-50%)" : "none")};
+  ${({ $rise, $drop, $expanded }) => {
+    if ($drop) {
+      return css`
+        animation: ${$expanded ? sheetDropCentered : sheetDrop} ${SHEET_MS}ms
+          cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      `;
+    }
+    if ($rise) {
+      return css`
+        animation: ${sheetRise} ${SHEET_MS}ms cubic-bezier(0.22, 1, 0.36, 1);
+      `;
+    }
+    return "";
+  }}
 `;
 
 const Handle = styled.button`
@@ -527,7 +749,7 @@ const List = styled.div`
   flex-direction: column;
   gap: 14px;
   overflow-y: auto;
-  padding-bottom: 24px;
+  padding-bottom: ${({ $preview }) => ($preview ? "0" : "24px")};
   scrollbar-width: none;
 
   &::-webkit-scrollbar {
@@ -631,21 +853,6 @@ const PhotoImage = styled.img`
   height: 119px;
   border-radius: 5.714px;
   object-fit: cover;
-`;
-
-const Photo = styled.div`
-  display: flex;
-  flex: 0 0 160px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 119px;
-  border-radius: 5.714px;
-  background-color: #bdd9c4;
-  color: #2f3833;
-  font-size: 12.5px;
-  font-weight: 600;
 `;
 
 const Icon = styled.img`

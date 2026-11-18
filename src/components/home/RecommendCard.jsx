@@ -2,16 +2,30 @@ import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import photoPawIcon from "../../assets/icons/search/photo-paw.svg";
 import clockIcon from "../../assets/icons/search/clock.svg";
+import { recordRecommendationClick } from "../../api/recommendations.js";
 
 /* 홈 "나를 위한 봉사 추천" 카드. 누르면 봉사 공고 상세로 이동 */
 export default function RecommendCard({ post }) {
   const navigate = useNavigate();
 
+  function handleClick() {
+    // 추천 API에서 온 카드면 클릭을 기록. 기록이 실패해도 상세 화면은 그대로 열림
+    if (post.batchId) recordRecommendationClick(post.batchId, post.id).catch(() => {});
+    navigate(`/shelters/volunteer/${post.postId}`);
+  }
+
   return (
-    <Card type="button" onClick={() => navigate(`/shelters/volunteer/${post.postId}`)}>
+    <Card type="button" onClick={handleClick}>
       <Photo>
-        <img src={photoPawIcon} alt="" />
-        시설 사진
+        {/* 사진이 오면 사진을, 없으면 회색 칸 */}
+        {post.thumbnailUrl ? (
+          <PhotoImage src={post.thumbnailUrl} alt="" />
+        ) : (
+          <>
+            <img src={photoPawIcon} alt="" />
+            시설 사진
+          </>
+        )}
       </Photo>
       <Info>
         <Tag>{post.matchLabel}</Tag>
@@ -19,10 +33,12 @@ export default function RecommendCard({ post }) {
         <Shelter>
           {post.shelter} · {post.region}
         </Shelter>
-        <Schedule>
-          <ClockIcon src={clockIcon} alt="" />
-          {post.schedule}
-        </Schedule>
+        {post.schedule && (
+          <Schedule>
+            <ClockIcon src={clockIcon} alt="" />
+            {post.schedule}
+          </Schedule>
+        )}
       </Info>
     </Card>
   );
@@ -55,6 +71,13 @@ const Photo = styled.span`
   background-color: #d9d9d9;
   color: #2f3833;
   font-size: 11px;
+`;
+
+const PhotoImage = styled.img`
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 `;
 
 const Info = styled.span`

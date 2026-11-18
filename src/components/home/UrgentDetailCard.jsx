@@ -14,7 +14,7 @@ const THEMES = {
 export default function UrgentDetailCard({ post, onDetailClick }) {
   const theme = THEMES[post.type];
   const isStaff = post.type === "staff";
-  const progress = isStaff ? (post.current / post.total) * 100 : post.percent;
+  const progress = isStaff ? (post.total > 0 ? (post.current / post.total) * 100 : 0) : post.percent;
 
   return (
     <Card $theme={theme}>
@@ -25,10 +25,12 @@ export default function UrgentDetailCard({ post, onDetailClick }) {
       <Shelter>{post.shelter}</Shelter>
 
       <Meta>
-        <MetaItem>
-          <img src={clockIcon} alt="" />
-          {post.schedule}
-        </MetaItem>
+        {post.schedule && (
+          <MetaItem>
+            <img src={clockIcon} alt="" />
+            {post.schedule}
+          </MetaItem>
+        )}
         {post.distance && (
           <MetaItem>
             <img src={pinIcon} alt="" />
