@@ -2,25 +2,39 @@ import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import clockIcon from "../../assets/icons/search/clock.svg";
 import pinIcon from "../../assets/icons/map/pin.svg";
+import { recordRecommendationClick } from "../../api/recommendations.js";
 
 /* "나를 위한 봉사 추천" 페이지 카드 */
 export default function RecommendListCard({ post }) {
   const navigate = useNavigate();
 
+  function handleClick() {
+    // 추천 API에서 온 카드면 클릭을 기록. 기록이 실패해도 상세 화면은 그대로 열림
+    if (post.batchId) recordRecommendationClick(post.batchId, post.id).catch(() => {});
+    navigate(`/shelters/volunteer/${post.postId}`);
+  }
+
   return (
-    <Card type="button" onClick={() => navigate(`/shelters/volunteer/${post.postId}`)}>
+    <Card type="button" onClick={handleClick}>
       <Title>{post.title}</Title>
       <Shelter>{post.shelter}</Shelter>
-      <Meta>
-        <MetaItem>
-          <MetaIcon src={clockIcon} alt="" />
-          {post.schedule}
-        </MetaItem>
-        <MetaItem>
-          <MetaIcon src={pinIcon} alt="" />
-          {post.distance}
-        </MetaItem>
-      </Meta>
+      {/* 일정·거리는 값이 있을 때만. 둘 다 없으면 줄 자체를 뺌 */}
+      {(post.schedule || post.distance) && (
+        <Meta>
+          {post.schedule && (
+            <MetaItem>
+              <MetaIcon src={clockIcon} alt="" />
+              {post.schedule}
+            </MetaItem>
+          )}
+          {post.distance && (
+            <MetaItem>
+              <MetaIcon src={pinIcon} alt="" />
+              {post.distance}
+            </MetaItem>
+          )}
+        </Meta>
+      )}
       <Tags>
         {post.tags.map((tag) => (
           <Tag key={tag}>{tag}</Tag>
