@@ -4,3 +4,9 @@ import { APIService } from "./api.js";
 export function getMyAccount() {
   return APIService.public.get("/users/me");
 }
+
+
+/*  회원 탈퇴 */
+export function deleteMyAccount() {
+  return APIService.public.delete("/users/me");
+}

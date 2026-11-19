@@ -4,10 +4,7 @@ import styled from "styled-components";
 import BackHeader from "../../components/auth/BackHeader.jsx";
 import ProfileCard from "../../components/mypage/ProfileCard.jsx";
 import MenuList from "../../components/mypage/MenuList.jsx";
-import ConfirmModal from "../../components/mypage/ConfirmModal.jsx";
 import { getMyAccount } from "../../api/users.js";
-import { logout } from "../../api/auth.js";
-import { clearTokens } from "../../utils/tokenStorage.js";
 import { startDraft } from "../../dummyData/mypage/preferenceDraft.js";
 import applyIcon from "../../assets/icons/mypage/icon-apply.svg";
 import doneIcon from "../../assets/icons/mypage/icon-done.svg";
@@ -32,8 +29,6 @@ export default function MyPage() {
   const toastTimer = useRef(null);
   const [account, setAccount] = useState(null);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [logoutOpen, setLogoutOpen] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // 화면이 처음 열릴 때 한 번 내 정보를 불러옴
   useEffect(() => {
@@ -73,19 +68,6 @@ export default function MyPage() {
     navigate("/mypage/preferences");
   }
 
-  async function handleLogout() {
-    if (isLoggingOut) return;
-    setIsLoggingOut(true);
-    try {
-      await logout();
-    } catch {
-      // 서버 요청이 실패해도 이 기기에서는 로그아웃 처리
-    }
-    clearTokens();
-    // 화면에 남아 있는 이전 사용자 정보까지 지우려고, 페이지를 새로 열면서 소개 화면으로
-    window.location.replace("/intro");
-  }
-
   const activityMenus = [
     { icon: applyIcon, label: "활동 내역", onClick: () => navigate("/activities", { state: { tab: "history" } }) },
     {
@@ -99,7 +81,7 @@ export default function MyPage() {
   const settingMenus = [
     { icon: profileIcon, label: "프로필 수정", onClick: showComingSoon },
     { icon: conditionIcon, label: "추천 조건 수정", onClick: openPreferenceEdit },
-    { icon: accountIcon, label: "계정 관리", onClick: () => setLogoutOpen(true) },
+    { icon: accountIcon, label: "계정 관리", onClick: () => navigate("/mypage/account") },
   ];
 
   return (
@@ -121,17 +103,7 @@ export default function MyPage() {
       </Body>
 
       {toast && <Toast role="status">{toast}</Toast>}
-
-      {logoutOpen && (
-        <ConfirmModal
-          title="로그아웃할까요?"
-          description="다시 이용하려면 로그인해야 해요."
-          confirmLabel="로그아웃"
-          cancelLabel="취소"
-          onConfirm={handleLogout}
-          onCancel={() => setLogoutOpen(false)}
-        />
-      )}
+      
     </Page>
   );
 }

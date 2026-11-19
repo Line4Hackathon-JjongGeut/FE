@@ -49,6 +49,7 @@ import OnboardingComplete from "../src/pages/Onboarding/OnboardingComplete.jsx";
 import Recommendations from "../src/pages/Home/Recommendations.jsx";
 import UrgentList from "../src/pages/Home/UrgentList.jsx";
 import PreferenceEdit from "../src/pages/MyPage/PreferenceEdit.jsx";
+import AccountSettings from "../src/pages/MyPage/AccountSettings.jsx";
 
 // 없는 주소
 import NotFound from "../src/pages/NotFound/NotFound.jsx";
@@ -110,6 +111,7 @@ function App() {
           <Route path="/recommendations" element={<Recommendations />} />
           <Route path="/urgent" element={<UrgentList />} />
           <Route path="/mypage/preferences" element={<PreferenceEdit />} />
+          <Route path="/mypage/account" element={<AccountSettings />} />
           <Route
             path="/mypage/preferences/region"
             element={<RegionSelect mode="edit" />}
