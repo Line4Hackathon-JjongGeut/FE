@@ -3,23 +3,47 @@ import closeIcon from "../../assets/icons/activities/close.svg";
 import dogImage from "../../assets/images/auth/complete-dog.svg";
 
 /* 화면 가운데 뜨는 확인 창 */
-export default function ConfirmModal({ title, description, confirmLabel = "네", cancelLabel = "아니요", onConfirm, onCancel }) {
+export default function ConfirmModal({
+  title,
+  description,
+  confirmLabel = "네",
+  cancelLabel = "아니요",
+  onConfirm,
+  onCancel,
+  image = dogImage,
+  imageWidth = 58,
+  primary = "cancel",
+  disabled = false,
+}) {
   return (
     <Overlay onClick={onCancel}>
       <Box role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" onClick={(event) => event.stopPropagation()}>
         <CloseButton type="button" aria-label="닫기" onClick={onCancel}>
           <img src={closeIcon} alt="" />
         </CloseButton>
-        <Dog src={dogImage} alt="" />
+        <Picture src={image} alt="" $width={imageWidth} />
         <Title id="confirm-modal-title">{title}</Title>
         <Description>{description}</Description>
         <Actions>
-          <ConfirmButton type="button" onClick={onConfirm}>
-            {confirmLabel}
-          </ConfirmButton>
-          <CancelButton type="button" onClick={onCancel}>
-            {cancelLabel}
-          </CancelButton>
+          {primary === "confirm" ? (
+            <>
+              <GrayButton type="button" onClick={onCancel}>
+                {cancelLabel}
+              </GrayButton>
+              <PinkButton type="button" onClick={onConfirm} disabled={disabled}>
+                {confirmLabel}
+              </PinkButton>
+            </>
+          ) : (
+            <>
+              <GrayButton type="button" onClick={onConfirm} disabled={disabled}>
+                {confirmLabel}
+              </GrayButton>
+              <PinkButton type="button" onClick={onCancel}>
+                {cancelLabel}
+              </PinkButton>
+            </>
+          )}
         </Actions>
       </Box>
     </Overlay>
@@ -59,8 +83,8 @@ const CloseButton = styled.button`
   cursor: pointer;
 `;
 
-const Dog = styled.img`
-  width: 58px;
+const Picture = styled.img`
+  width: ${({ $width }) => $width}px;
 `;
 
 const Title = styled.h2`
@@ -87,7 +111,7 @@ const Actions = styled.div`
   margin-top: 23px;
 `;
 
-const ConfirmButton = styled.button`
+const GrayButton = styled.button`
   height: 42px;
   border: 0;
   border-radius: 11px;
@@ -96,9 +120,14 @@ const ConfirmButton = styled.button`
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
 `;
 
-const CancelButton = styled(ConfirmButton)`
+const PinkButton = styled(GrayButton)`
   background-color: #e88b7a;
   color: #ffffff;
 `;

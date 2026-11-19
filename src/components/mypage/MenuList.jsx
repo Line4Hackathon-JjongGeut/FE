@@ -8,7 +8,8 @@ export default function MenuList({ items }) {
       {items.map((item) => (
         <Row key={item.label} type="button" onClick={item.onClick}>
           <Icon src={item.icon} alt="" />
-          <Label>{item.label}</Label>
+          <Label $danger={item.danger}>{item.label}</Label>
+          {item.value && <Value>{item.value}</Value>}
           <Chevron src={chevronIcon} alt="" />
         </Row>
       ))}
@@ -40,14 +41,21 @@ const Row = styled.button`
 
 const Icon = styled.img`
   width: 14px;
-  height: 14px;
+  height: 16px;
+  object-fit: contain;
 `;
 
 const Label = styled.span`
   flex: 1;
-  color: #312d2d;
+  color: ${({ $danger }) => ($danger ? "#c4513b" : "#312d2d")};
   font-size: 15px;
   font-weight: 600;
+`;
+
+const Value = styled.span`
+  color: #8a8a8a;
+  font-size: 14px;
+  font-weight: 500;
 `;
 
 const Chevron = styled.img`

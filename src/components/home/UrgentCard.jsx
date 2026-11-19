@@ -1,5 +1,5 @@
 import styled from "styled-components";
-import { URGENT_LABELS } from "../../dummyData/home/homeDummy.js";
+import { URGENT_LABELS } from "../../utils/urgentMapper.js";
 
 /* 홈 "도움이 급한 활동" 카드 */
 export default function UrgentCard({ post, onClick }) {

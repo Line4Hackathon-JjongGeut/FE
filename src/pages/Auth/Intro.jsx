@@ -36,9 +36,11 @@ const AUTO_SLIDE_DELAY = 3000;
 export default function Intro() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+  const [direction, setDirection] = useState(1);
   const startX = useRef(null);
   useEffect(() => {
     const timer = setTimeout(() => {
+      setDirection(1);
       setStep((current) => (current + 1) % TOTAL);
     }, AUTO_SLIDE_DELAY);
     return () => clearTimeout(timer);
@@ -53,16 +55,23 @@ export default function Intro() {
     const distance = event.clientX - startX.current;
     startX.current = null;
 
-    if (distance < -SWIPE_DISTANCE) setStep((step + 1) % TOTAL);
-    if (distance > SWIPE_DISTANCE) setStep((step - 1 + TOTAL) % TOTAL);
+    if (distance < -SWIPE_DISTANCE) goTo((step + 1) % TOTAL, 1);
+    if (distance > SWIPE_DISTANCE) goTo((step - 1 + TOTAL) % TOTAL, -1);
+  }
+
+  /* 점을 누르면 뒤에 있는 점은 오른쪽에서, 앞에 있는 점은 왼쪽에서 들어오게 */
+  function goTo(nextStep, nextDirection = nextStep > step ? 1 : -1) {
+    if (nextStep === step) return;
+    setDirection(nextDirection);
+    setStep(nextStep);
   }
 
   return (
     <Screen>
       <Content onPointerDown={handlePointerDown} onPointerUp={handlePointerUp}>
-        <SlideArea key={step}>{step === 0 ? <IntroHero /> : <IntroSlide {...SLIDES[step - 1]} />}</SlideArea>
+        <SlideArea key={step} $direction={direction}>{step === 0 ? <IntroHero /> : <IntroSlide {...SLIDES[step - 1]} />}</SlideArea>
         <DotsArea>
-          <PageDots total={TOTAL} current={step} onSelect={setStep} />
+          <PageDots total={TOTAL} current={step} onSelect={(index) => goTo(index)} />
         </DotsArea>
       </Content>
 
@@ -101,12 +110,14 @@ const Content = styled.div`
   }
 `;
 
-const fadeIn = keyframes`
+const slideIn = keyframes`
   from {
     opacity: 0;
+    transform: translateX(var(--slide-from));
   }
   to {
     opacity: 1;
+    transform: translateX(0);
   }
 `;
 
@@ -115,7 +126,8 @@ const SlideArea = styled.div`
   flex-direction: column;
   justify-content: flex-end;
   height: 360px;
-  animation: ${fadeIn} 0.4s ease;
+  --slide-from: ${({ $direction }) => ($direction > 0 ? "60px" : "-60px")};
+  animation: ${slideIn} 0.45s ease-out;
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
