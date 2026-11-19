@@ -20,7 +20,7 @@ export default function UrgentSection() {
     enabled: preferenceStatus !== "loading",
   });
   // 홈에는 인력 부족만 최대 6개, 2개씩 페이지로 나눔
-  const posts = urgent.posts.filter((post) => post.type === "staff").slice(0, HOME_URGENT_COUNT);
+  const posts = urgent.posts.slice(0, HOME_URGENT_COUNT);
   const pages = chunk(posts, CARDS_PER_PAGE);
 
   return (
@@ -36,7 +36,13 @@ export default function UrgentSection() {
           pages={pages}
           gap={15}
           // 카드를 누르면 그 공고 상세로 바로 (봉사는 봉사 상세, 후원은 후원 상세)
-          renderCard={(post) => <UrgentCard key={post.id} post={post} onClick={() => navigate(post.detailPath)} />}
+          renderCard={(post) => (
+            <UrgentCard
+              key={post.id}
+              post={post}
+              onClick={() => navigate(post.detailPath)}
+            />
+          )}
         />
       )}
       {urgent.status === "error" && (
@@ -47,7 +53,9 @@ export default function UrgentSection() {
           </RetryButton>
         </Message>
       )}
-      {urgent.status === "ready" && posts.length === 0 && <Message>지금은 급하게 도움이 필요한 곳이 없어요.</Message>}
+      {urgent.status === "ready" && posts.length === 0 && (
+        <Message>지금은 급하게 도움이 필요한 곳이 없어요.</Message>
+      )}
     </Section>
   );
 }

@@ -10,9 +10,15 @@ export default function UrgentCard({ post, onClick }) {
         <Shelter>
           {post.shelter} · {post.region}
         </Shelter>
-        <Volunteers>
-          이번 주 봉사자 <Count>{post.current}</Count> / {post.total}명
-        </Volunteers>
+        {post.type === "staff" ? (
+          <Volunteers>
+            이번 주 봉사자 <Count>{post.current}</Count> / {post.total}명
+          </Volunteers>
+        ) : (
+          <Volunteers>
+            후원 달성 <Count>{post.percent}</Count>%
+          </Volunteers>
+        )}
       </Info>
       <Badge>{URGENT_LABELS[post.type]}</Badge>
     </Card>
