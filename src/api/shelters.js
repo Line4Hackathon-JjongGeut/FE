@@ -32,7 +32,7 @@ export function getShelters(params = {}) {
 
 /*
   보호시설 상세 조회.
-  시설 정보, 인증 상태, 연락처(인증 시설만), 모집 중 공고를 가져옵니다.
+  시설 정보, 인증 상태, 연락처, 운영 시간, 방문 안내, 모집 중 공고를 가져옵니다.
   좌표를 보내면 거리도 함께 옵니다.
 */
 export function getShelterDetail(shelterId, params = {}) {

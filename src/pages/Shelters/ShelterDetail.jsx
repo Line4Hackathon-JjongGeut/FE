@@ -15,7 +15,6 @@ import { loadKakaoMap } from "../../lib/kakaoMap.js";
 import { findCoordsByAddress } from "../../lib/kakaoAddress.js";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-const ANIMAL_LABELS = { DOG: "강아지", CAT: "고양이" };
 
 /* 모집 시작 시각을 카드에 보이는 날짜 문구로 바꿉니다. */
 function formatStart(value) {
@@ -41,21 +40,11 @@ function toPostingCard(post) {
 
 /* 상세 응답을 화면에 쓰던 시설 정보 모양으로 맞춥니다. 위쪽 사진은 imageUrls를 씁니다. */
 function toShelterView(data) {
-  const region = [data.region?.sido, data.region?.sigungu].filter(Boolean).join(" ");
-  const badges = [];
-  if (data.verificationStatus === "VERIFIED") {
-    badges.push({ id: "certified", label: "쫑긋 인증 시설", tone: "filled" });
-  }
-  if (data.animalTypes?.length) {
-    badges.push({
-      id: "animals",
-      label: data.animalTypes.map((type) => ANIMAL_LABELS[type] ?? type).join(", "),
-      tone: "outline",
-    });
-  }
+  const badges = [{ id: "certified", label: "쫑긋 인증 시설", tone: "filled" }];
   const info = [
-    region ? { label: "위치", value: region } : null,
-    data.address ? { label: "주소", value: data.address } : null,
+    data.operatingHours ? { label: "운영 시간", value: data.operatingHours } : null,
+    data.address ? { label: "위치", value: data.address } : null,
+    data.visitPolicy ? { label: "방문 안내", value: data.visitPolicy } : null,
     data.phone ? { label: "연락처", value: data.phone } : null,
     data.distanceKm != null ? { label: "거리", value: `${data.distanceKm}km` } : null,
   ].filter(Boolean);
@@ -363,13 +352,9 @@ export default function ShelterDetail() {
       <Content>
         {/* 제목 위, 채운 알약과 테두리만 있는 알약을 가로로 붙입니다. */}
         <BadgeRow>
-          {shelter.badges.map((badge) =>
-            badge.tone === "filled" ? (
-              <FilledBadge key={badge.id}>{badge.label}</FilledBadge>
-            ) : (
-              <OutlineBadge key={badge.id}>{badge.label}</OutlineBadge>
-            ),
-          )}
+          {shelter.badges.map((badge) => (
+            <FilledBadge key={badge.id}>{badge.label}</FilledBadge>
+          ))}
         </BadgeRow>
 
         <Title>{shelter.name}</Title>
@@ -581,20 +566,6 @@ const FilledBadge = styled.span`
   font-weight: 700;
 `;
 
-/* 속은 비우고 진한 회색 선만 두른 알약입니다. */
-const OutlineBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 19px;
-  padding: 0 7px;
-  border: 1px solid #2f3833;
-  border-radius: 10px;
-  color: #2f3833;
-  font-size: 10px;
-  font-weight: 700;
-`;
-
 /* 시설 이름. 한 줄을 차지하는 굵은 제목입니다. */
 const Title = styled.h1`
   margin: 4px 0 0;
@@ -642,16 +613,21 @@ const InfoRow = styled.div`
 
 const InfoLabel = styled.span`
   flex-shrink: 0;
-  width: 52px;
+  width: 56px;
   color: #817f7f;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
 `;
 
 const InfoValue = styled.span`
+  flex: 1;
+  min-width: 0;
   color: #382f2f;
   font-size: 13px;
   font-weight: 500;
+  line-height: 17px;
+  word-break: break-word;
 `;
 
 /* 소개 본문. 줄 사이가 조금 넓은 직사각형 글 덩어리입니다. */

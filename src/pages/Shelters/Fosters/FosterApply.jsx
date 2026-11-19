@@ -57,6 +57,7 @@ export default function FosterApply() {
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
 
   /* 신청하는 공고의 제목과 시설명을 공고 상세에서 가져옵니다. */
   useEffect(() => {
@@ -84,9 +85,17 @@ export default function FosterApply() {
     };
   }, [postId]);
 
+  const requiredReady = Boolean(
+    name.trim()
+    && phone.trim()
+    && period.trim()
+    && home
+    && experience,
+  );
+
   /* 지원 완료하기. 입력한 내용을 해당 공고의 시설에 보냅니다. */
   async function finish() {
-    if (submitting || post?.id == null) return;
+    if (submitting || post?.id == null || !requiredReady) return;
     const homeText = home === "기타" ? homeNote.trim() || "기타" : home;
     const note = [
       name.trim() && `이름: ${name.trim()}`,
@@ -96,12 +105,20 @@ export default function FosterApply() {
       message.trim(),
     ].filter(Boolean).join("\n").slice(0, 500);
 
+    const contactPhone = phone.replace(/\D/g, "");
+    if (contactPhone.length !== 11) {
+      setPhoneError("연락처 정보를 확인해 주세요!");
+      setSubmitError("");
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError("");
+    setPhoneError("");
     try {
       const result = await postFosterInquiry(post.id, {
         message: note,
-        contactPhone: phone.trim(),
+        contactPhone,
       });
       const range = parseFosterPeriod(period);
       if (range) {
@@ -117,7 +134,12 @@ export default function FosterApply() {
       }
       navigate(`/fosters/${post.id}/complete`);
     } catch (error) {
-      setSubmitError(error.message || "참여 의사를 전달하지 못했습니다.");
+      const text = error.message || "";
+      if (text.includes("contactPhone") || text.includes("연락처")) {
+        setPhoneError("연락처 정보를 확인해 주세요!");
+      } else {
+        setSubmitError(text || "참여 의사를 전달하지 못했습니다.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -186,8 +208,12 @@ export default function FosterApply() {
             value={phone}
             inputMode="tel"
             placeholder="010-0000-0000"
-            onChange={(event) => setPhone(event.target.value)}
+            onChange={(event) => {
+              setPhone(event.target.value);
+              setPhoneError("");
+            }}
           />
+          {phoneError ? <PhoneError>{phoneError}</PhoneError> : null}
         </Field>
 
         <Field>
@@ -318,7 +344,7 @@ export default function FosterApply() {
 
       {/* 가로로 긴 둥근 사각형 버튼. 속을 살구색으로 채웁니다. */}
       {submitError && <SubmitError>{submitError}</SubmitError>}
-      <SubmitButton type="button" disabled={submitting || post?.id == null} onClick={finish}>
+      <SubmitButton type="button" disabled={submitting || post?.id == null || !requiredReady} onClick={finish}>
         지원 완료하기
       </SubmitButton>
     </Screen>
@@ -616,6 +642,14 @@ const OtherInput = styled.input`
   font-weight: 500;
 `;
 
+const PhoneError = styled.p`
+  margin: 8px 0 0;
+  color: #c4513b;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+`;
+
 const SubmitError = styled.p`
   margin: 24px 0 0;
   color: #c4513b;
@@ -634,4 +668,9 @@ const SubmitButton = styled.button`
   font-size: 17px;
   font-weight: 600;
   cursor: pointer;
+
+  &:disabled {
+    background-color: #f4d5ce;
+    cursor: default;
+  }
 `;

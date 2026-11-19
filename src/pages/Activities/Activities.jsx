@@ -17,10 +17,10 @@ import { formatFosterPeriodLabel, listFosterPeriods } from "../../utils/fosterPe
 const TABS = [
   { id: "calendar", label: "캘린더" },
   { id: "history", label: "활동 내역" },
-  { id: "saved", label: "저장" },
+  { id: "saved", label: "저장된 활동" },
 ];
 
-const HISTORY_FILTERS = ["전체", "승인 대기", "참여 예정", "참여 완료"];
+const HISTORY_FILTERS = ["전체", "승인 대기", "참여 예정", "참여 중", "참여 완료"];
 const SAVED_FILTERS = ["전체", "봉사", "후원", "임시보호"];
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const FILTER_COLORS = {
@@ -103,6 +103,21 @@ export default function Activities() {
   useEffect(() => {
     if (tab !== "history") return undefined;
     let ignore = false;
+
+    const showCards = (cards) => {
+      setHistoryItems(cards);
+      attachPostingCategories(cards).then((next) => {
+        if (!ignore) setHistoryItems(next);
+      });
+    };
+
+    if (historyFilter === "참여 중") {
+      showCards(fosterHistoryCards(historyFilter));
+      return () => {
+        ignore = true;
+      };
+    }
+
     setHistoryItems(null);
 
     const completed = historyFilter === "참여 완료";
@@ -119,10 +134,10 @@ export default function Activities() {
         if (ignore) return;
         const items = result?.isSuccess ? result.data?.items ?? [] : [];
         const cards = items.map(completed ? toParticipationCard : toApplicationCard);
-        setHistoryItems([...fosterHistoryCards(historyFilter), ...cards]);
+        showCards([...fosterHistoryCards(historyFilter), ...cards]);
       })
       .catch(() => {
-        if (!ignore) setHistoryItems(fosterHistoryCards(historyFilter));
+        if (!ignore) showCards(fosterHistoryCards(historyFilter));
       });
 
     return () => {
@@ -471,12 +486,19 @@ export default function Activities() {
                   else openPosting(item);
                 }}
               >
-                <Badge
-                  $background={badgeStyle(item.status).background}
-                  $color={badgeStyle(item.status).color}
-                >
-                  {item.status}
-                </Badge>
+                <BadgeRow>
+                  <Badge
+                    $background={badgeStyle(item.status).background}
+                    $color={badgeStyle(item.status).color}
+                  >
+                    {item.status}
+                  </Badge>
+                  {tab === "history" && FILTER_COLORS[item.category] && (
+                    <TypePill $color={FILTER_COLORS[item.category]}>
+                      {item.category}
+                    </TypePill>
+                  )}
+                </BadgeRow>
 
                 <CardTitle>{item.title}</CardTitle>
                 <Shelter>{item.shelter}</Shelter>
@@ -572,11 +594,11 @@ function toParticipationCard(item) {
     schedule: formatActivityTime(item.activityStartAt),
     postingId: item.postingId,
     activityDate: dateKey(item.activityStartAt),
-    category: "봉사",
+    category: POSTING_CATEGORY[item.postingType] ?? "",
   };
 }
 
-/* 목록 응답 한 건을 활동 카드에 맞게 바꿉니다. */
+/* 목록 응답 한 건을 활동 카드에 맞게 바꿉니다. 종류는 공고 상세의 postingType으로 채웁니다. */
 function toApplicationCard(item) {
   return {
     id: item.applicationId,
@@ -592,8 +614,34 @@ function toApplicationCard(item) {
     scheduleId: item.scheduleId,
     cancellable: item.cancellable,
     activityDate: dateKey(item.activityStartAt),
-    category: "봉사",
+    category: POSTING_CATEGORY[item.postingType] ?? "",
   };
+}
+
+/* 신청 목록에는 공고 종류가 없어서, 공고 상세의 postingType으로 배지 문구를 채웁니다. */
+async function attachPostingCategories(cards) {
+  const ids = [...new Set(
+    cards
+      .map((card) => card.postingId)
+      .filter((id) => id != null && /^\d+$/.test(String(id))),
+  )];
+
+  const entries = await Promise.all(ids.map(async (postingId) => {
+    try {
+      const result = await getPostingDetail(postingId);
+      const type = result?.isSuccess ? result.data?.postingType : "";
+      return [String(postingId), POSTING_CATEGORY[type] ?? ""];
+    } catch {
+      return [String(postingId), ""];
+    }
+  }));
+
+  const byId = new Map(entries);
+  return cards.map((card) => {
+    const category = byId.get(String(card.postingId));
+    if (!category) return card;
+    return { ...card, category };
+  });
 }
 
 /* 임시보호 기간이 오늘보다 뒤면 참여 예정, 지났으면 참여 완료, 오늘을 포함하면 참여 중입니다. */
@@ -833,8 +881,10 @@ const TabBar = styled.div`
 
 const Tab = styled.button`
   position: relative;
-  width: 84px;
+  width: auto;
   height: 46px;
+  padding: 0 4px;
+  white-space: nowrap;
   border: 0;
   background: transparent;
   color: ${(props) => (props.$active ? "#e88b7a" : "#d9d9d9")};
@@ -1110,6 +1160,12 @@ const HistoryCard = styled.button`
   cursor: pointer;
 `;
 
+const BadgeRow = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+`;
+
 const Badge = styled.span`
   display: inline-flex;
   align-items: center;
@@ -1118,6 +1174,19 @@ const Badge = styled.span`
   border-radius: 17px;
   background-color: ${(props) => props.$background};
   color: ${(props) => props.$color};
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+/* 저장 탭 필터와 같은 색의 공고 종류 배지입니다. */
+const TypePill = styled.span`
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 20px;
+  background-color: ${(props) => props.$color};
+  color: #ffffff;
   font-size: 12px;
   font-weight: 700;
 `;
