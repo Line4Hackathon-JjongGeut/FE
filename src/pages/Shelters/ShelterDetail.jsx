@@ -224,13 +224,12 @@ export default function ShelterDetail() {
     };
   }, [shelterId]);
 
-  /* 발바닥은 시설과 그 시설의 모집 공고를 함께 저장하거나 해제합니다. */
+  /* 발바닥은 이 보호시설만 저장하거나 해제합니다. */
   async function toggleBookmark() {
     if (savingBookmark) return;
     setSavingBookmark(true);
-    const postingIds = (posts ?? []).map((post) => post.id).filter((id) => id != null);
     try {
-      await setSavedFavorite({ shelterId, postingIds, saved: favorite });
+      await setSavedFavorite({ shelterId, saved: favorite });
       setFavorite(!favorite);
     } catch (error) {
       if (error.status === 409) setFavorite(true);
@@ -293,7 +292,7 @@ export default function ShelterDetail() {
   /* 모집 카드는 공고 종류에 맞는 상세로 이동합니다. */
   function openPost(post) {
     const type = String(post.postingType ?? "");
-    if (type === "후원" || type.toUpperCase().includes("DONATION")) {
+    if (type === "후원" || type.toUpperCase().includes("SPONSOR") || type.toUpperCase().includes("DONATION")) {
       navigate(`/donations/${post.id}`);
       return;
     }

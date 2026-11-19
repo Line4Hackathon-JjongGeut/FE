@@ -1,11 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
-import backButtonIcon from "../../../assets/icons/shelters/detail/back-button.svg";
+import backButtonIcon from "../../../assets/icons/shelters/detail/back-button-light.svg";
 import dividerIcon from "../../../assets/icons/shelters/detail/divider.svg";
 import pawIcon from "../../../assets/icons/shelters/detail/paw.svg";
 import pawFilledIcon from "../../../assets/icons/shelters/detail/paw-filled.svg";
-import { findFosterPost } from "../../../dummyData/shelters/fosters/fosterDummy.js";
 import { getPostingDetail } from "../../../api/postings.js";
 import { setSavedFavorite } from "../../../api/activities.js";
 
@@ -13,9 +12,9 @@ import { setSavedFavorite } from "../../../api/activities.js";
 export default function FosterDetail() {
   const navigate = useNavigate();
   const { postId } = useParams();
-  const saved = findFosterPost(postId);
-  const [post, setPost] = useState(saved);
-  const photos = post.photos;
+  const isNumericId = /^\d+$/.test(String(postId ?? ""));
+  const [post, setPost] = useState(null);
+  const photos = post?.photos ?? [];
   const [favorite, setFavorite] = useState(false);
   const [savingBookmark, setSavingBookmark] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -35,32 +34,31 @@ export default function FosterDetail() {
     const observer = new ResizeObserver(measure);
     observer.observe(frame);
     return () => observer.disconnect();
-  }, []);
+  }, [photos.length]);
 
-  /* 숫자 공고 번호면 모집공고 상세를 가져옵니다. 실패하면 임시 내용을 유지합니다. */
+  /* 숫자 공고 번호면 모집공고 상세를 가져옵니다. 오기 전에는 임시 공고를 보여 주지 않습니다. */
   useEffect(() => {
-    if (!/^\d+$/.test(String(postId ?? ""))) return undefined;
-    setPost(findFosterPost(postId));
+    if (!isNumericId) return undefined;
+    setPost(null);
     let ignore = false;
     getPostingDetail(postId)
       .then((result) => {
         if (ignore || !result?.isSuccess || !result.data) return;
-        setPost((current) => ({ ...current, ...toFosterView(result.data), photos: current.photos }));
+        setPost(toFosterView(result.data));
         if (typeof result.data.bookmarked === "boolean") setFavorite(result.data.bookmarked);
       })
       .catch(() => {});
     return () => {
       ignore = true;
     };
-  }, [postId]);
+  }, [isNumericId, postId]);
 
-  /* 발바닥은 공고와 그 보호시설을 함께 저장하거나 해제합니다. */
+  /* 발바닥은 이 공고만 저장하거나 해제합니다. */
   async function saveBookmark() {
     if (savingBookmark) return;
     setSavingBookmark(true);
     try {
       await setSavedFavorite({
-        shelterId: post.shelterId,
         postingIds: [post.id],
         saved: favorite,
       });
@@ -123,6 +121,16 @@ export default function FosterDetail() {
     else if (dx >= 48 && index > 0) showPhoto(index - 1);
   }
 
+  if (!post) {
+    return (
+      <Screen>
+        <BackButton type="button" aria-label="뒤로 가기" onClick={() => navigate(-1)}>
+          <img src={backButtonIcon} alt="" />
+        </BackButton>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       {/* 위쪽을 가득 채우는 가로로 긴 직사각형 사진입니다. 양옆으로 밀어 장을 바꿉니다. */}
@@ -152,9 +160,11 @@ export default function FosterDetail() {
           <img src={backButtonIcon} alt="" />
         </BackButton>
         {/* 사진 오른쪽 아래, 반투명한 어두운 알약에 사진 순서를 적습니다. */}
-        <PhotoCount>
-          {photoIndex + 1} / {photos.length}
-        </PhotoCount>
+        {photos.length > 0 && (
+          <PhotoCount>
+            {photoIndex + 1} / {photos.length}
+          </PhotoCount>
+        )}
       </Hero>
 
       <Content>
@@ -173,10 +183,10 @@ export default function FosterDetail() {
         </ShelterLink>
 
         <Stack>
-          <InfoBlock title="아이 정보" rows={post.animal} />
-          <Divider src={dividerIcon} alt="" />
-          <InfoBlock title="임시보호 정보" rows={post.care} />
-          <Divider src={dividerIcon} alt="" />
+          {post.animal?.length > 0 && <InfoBlock title="아이 정보" rows={post.animal} />}
+          {post.animal?.length > 0 && <Divider src={dividerIcon} alt="" />}
+          {post.care?.length > 0 && <InfoBlock title="임시보호 정보" rows={post.care} />}
+          {post.care?.length > 0 && <Divider src={dividerIcon} alt="" />}
           <Section>
             <SectionTitle>상세 내용</SectionTitle>
             <Body>{post.detail}</Body>
@@ -221,6 +231,9 @@ function toFosterView(data) {
     shelterId: data.shelter?.shelterId,
     shelterName: data.shelter?.name ?? "",
     detail: data.description ?? "",
+    photos: (Array.isArray(data.imageUrls) ? data.imageUrls : [])
+      .filter(Boolean)
+      .map((src, index) => ({ id: index + 1, src, position: "center" })),
   };
   if (animal.length) view.animal = animal;
   if (care.length) view.care = care;
@@ -305,11 +318,12 @@ const HeroPhoto = styled.img`
   pointer-events: none;
 `;
 
+/* 화면 왼쪽 위에 고정합니다. 앱 화면이 가운데일 때도 사진 위 같은 자리에 둡니다. */
 const BackButton = styled.button`
-  position: absolute;
+  position: fixed;
   top: 16px;
-  left: 20px;
-  z-index: 1;
+  left: max(20px, calc(50vw - 195px + 20px));
+  z-index: 6;
   border: 0;
   padding: 0;
   background: transparent;

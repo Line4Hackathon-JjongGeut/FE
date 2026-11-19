@@ -9,6 +9,9 @@ import photoPawIcon from "../../assets/icons/search/photo-paw.svg";
 import clockIcon from "../../assets/icons/search/clock.svg";
 import { getPostings } from "../../api/postings.js";
 import { getSavedSearches } from "../../api/search.js";
+import { setSavedFavorite } from "../../api/activities.js";
+import pawIcon from "../../assets/icons/map/paw-alt.svg";
+import pawFilledIcon from "../../assets/icons/map/paw-filled.svg";
 import { FILTERS, FILTER_COLORS } from "../../dummyData/map/mapDummy.js";
 
 /* Enter로 검색한 단어만 기억합니다. 화면을 나갔다 들어와도 유지됩니다. */
@@ -19,12 +22,13 @@ const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 /* 화면 필터를 모집공고 검색의 postingType으로 바꿉니다. */
 const TYPE_QUERY = {
   봉사: "VOLUNTEER",
-  후원: "DONATION",
+  후원: "SPONSOR",
   임시보호: "FOSTER",
 };
 
 const TYPE_LABEL = {
   VOLUNTEER: "봉사",
+  SPONSOR: "후원",
   DONATION: "후원",
   FOSTER: "임시보호",
   봉사: "봉사",
@@ -151,9 +155,27 @@ export default function Search() {
     (item) => filter !== "즐겨찾기" || item.bookmarked,
   );
 
+  /* 발바닥은 이 공고만 저장하거나 해제합니다. */
+  async function toggleResultBookmark(item) {
+    const saved = Boolean(item.bookmarked);
+    try {
+      await setSavedFavorite({
+        postingIds: [item.id].filter((id) => id != null),
+        saved,
+      });
+      const mark = (list) => list?.map((row) => (
+        row.id === item.id ? { ...row, bookmarked: !saved } : row
+      )) ?? list;
+      setApiResults(mark);
+      setSavedResults(mark);
+    } catch {
+      /* 저장에 실패하면 표시는 그대로 둡니다. */
+    }
+  }
+
   function openResult(item) {
     const type = String(item.postingType ?? item.category ?? "");
-    if (type === "후원" || type.toUpperCase().includes("DONATION")) {
+    if (type === "후원" || type.toUpperCase().includes("SPONSOR") || type.toUpperCase().includes("DONATION")) {
       navigate(`/donations/${item.id}`);
       return;
     }
@@ -292,11 +314,7 @@ export default function Search() {
             {waiting ? null : results.length > 0 ? (
               <ResultList>
                 {results.map((item) => (
-                  <ResultCard
-                    key={item.id}
-                    type="button"
-                    onClick={() => openResult(item)}
-                  >
+                  <ResultCard key={item.id} onClick={() => openResult(item)}>
                     <Photo>
                       {item.photo ? (
                         <PhotoImage src={item.photo} alt="" />
@@ -320,6 +338,17 @@ export default function Search() {
                         </Time>
                       )}
                     </ResultBody>
+                    <SaveButton
+                      type="button"
+                      aria-pressed={item.bookmarked}
+                      aria-label={item.bookmarked ? "즐겨찾기 해제" : "즐겨찾기"}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleResultBookmark(item);
+                      }}
+                    >
+                      <img src={item.bookmarked ? pawFilledIcon : pawIcon} alt="" />
+                    </SaveButton>
                   </ResultCard>
                 ))}
               </ResultList>
@@ -347,9 +376,10 @@ function toSearchResult(item) {
   const start = item.activityStartAt ?? shelter.activityStartAt;
   return {
     id: item.postingId,
+    shelterId: item.shelterId ?? shelter.shelterId,
     postingType: item.postingType,
     category: type,
-    badge: beginnerFriendly ? "초보 가능" : item.urgent ? "긴급" : type,
+    badge: beginnerFriendly ? "초보 가능" : type,
     title: item.title ?? "",
     shelter: shelter.name ?? "",
     region: shelter.region?.sigungu ?? shelter.region?.sido ?? "",
@@ -585,8 +615,8 @@ const ResultList = styled.div`
   margin-top: 14px;
 `;
 
-/* 카드 전체를 누르면 봉사 공고 상세로 이동합니다. */
-const ResultCard = styled.button`
+/* 카드 전체를 누르면 공고 상세로 이동합니다. */
+const ResultCard = styled.article`
   display: flex;
   gap: 14px;
   width: 100%;
@@ -625,6 +655,17 @@ const PhotoLabel = styled.span`
   margin-top: 4px;
   color: #2f3833;
   font-size: 11px;
+`;
+
+const SaveButton = styled.button`
+  flex-shrink: 0;
+  align-self: flex-start;
+  width: 28px;
+  height: 28px;
+  margin-top: 6px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 `;
 
 const ResultBody = styled.div`

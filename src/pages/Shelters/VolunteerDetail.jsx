@@ -111,13 +111,12 @@ export default function VolunteerDetail() {
     };
   }, [postId]);
 
-  /* 발바닥은 공고와 그 보호시설을 함께 저장하거나 해제합니다. */
+  /* 발바닥은 이 공고만 저장하거나 해제합니다. */
   async function saveBookmark() {
     if (savingBookmark) return;
     setSavingBookmark(true);
     try {
       await setSavedFavorite({
-        shelterId: post.shelterId,
         postingIds: [post.id],
         saved: favorite,
       });
