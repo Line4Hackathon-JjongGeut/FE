@@ -101,6 +101,7 @@ const Track = styled.div`
 const Page = styled.div`
   display: flex;
   flex: 0 0 100%;
+  min-width: 0;
   flex-direction: column;
   gap: 12px;
   scroll-snap-align: start;

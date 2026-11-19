@@ -1,5 +1,5 @@
 import styled from "styled-components";
-import { URGENT_LABELS } from "../../dummyData/home/homeDummy.js";
+import { URGENT_LABELS } from "../../utils/urgentMapper.js";
 import clockIcon from "../../assets/icons/search/clock.svg";
 import pinIcon from "../../assets/icons/map/pin.svg";
 import chevronIcon from "../../assets/icons/search/chevron.svg";

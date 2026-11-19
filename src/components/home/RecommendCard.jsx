@@ -82,6 +82,7 @@ const PhotoImage = styled.img`
 
 const Info = styled.span`
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
@@ -98,17 +99,25 @@ const Tag = styled.span`
 `;
 
 const Title = styled.span`
+  max-width: 100%;
   margin-top: 9px;
+  overflow: hidden;
   color: #382f2f;
   font-size: 17px;
   font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 `;
 
 const Shelter = styled.span`
+  max-width: 100%;
   margin-top: 5px;
+  overflow: hidden;
   color: #605b5b;
   font-size: 13px;
   font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 `;
 
 const Schedule = styled.span`
