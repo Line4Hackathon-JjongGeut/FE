@@ -1,14 +1,48 @@
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import dogIcon from "../../../assets/icons/fosters/dog.svg";
 import checkIcon from "../../../assets/icons/fosters/check.svg";
-import { findFosterPost } from "../../../dummyData/shelters/fosters/fosterDummy.js";
+import { getPostingDetail } from "../../../api/postings.js";
+
+const TYPE_LABEL = {
+  FOSTER: "임시보호",
+  VOLUNTEER: "봉사",
+  SPONSOR: "후원",
+  DONATION: "후원",
+};
 
 /* 지원 완료하기를 누르면 열리는 임시보호 접수 완료 화면입니다. */
 export default function FosterComplete() {
   const navigate = useNavigate();
   const { postId } = useParams();
-  const post = findFosterPost(postId);
+  const [post, setPost] = useState(null);
+
+  /* 완료 카드의 제목과 사진은 방금 신청한 공고 상세에서 가져옵니다. */
+  useEffect(() => {
+    if (!/^\d+$/.test(String(postId ?? ""))) {
+      setPost({});
+      return undefined;
+    }
+    let ignore = false;
+    getPostingDetail(postId)
+      .then((result) => {
+        if (ignore) return;
+        const data = result?.isSuccess ? result.data : null;
+        const photo = (Array.isArray(data?.imageUrls) ? data.imageUrls : []).find(Boolean) || "";
+        setPost(data ? {
+          title: data.title ?? "",
+          category: TYPE_LABEL[data.postingType] ?? "임시보호",
+          photo,
+        } : {});
+      })
+      .catch(() => {
+        if (!ignore) setPost({});
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [postId]);
 
   return (
     <Screen>
@@ -27,12 +61,12 @@ export default function FosterComplete() {
 
         {/* 얇은 회색 테두리의 가로로 긴 둥근 사각형 카드입니다. */}
         <Summary>
-          <Thumb src={post.photos[0].src} alt="" />
+          {post?.photo ? <Thumb src={post.photo} alt="" /> : <ThumbPlaceholder />}
           <SummaryBody>
-            <SummaryTitle>{post.title}</SummaryTitle>
+            <SummaryTitle>{post?.title ?? ""}</SummaryTitle>
             <Badges>
               {/* 노란 주황으로 속을 채운 작은 알약입니다. */}
-              <CategoryBadge>{post.category}</CategoryBadge>
+              <CategoryBadge>{post?.category ?? "임시보호"}</CategoryBadge>
               {/* 연한 초록으로 속을 채운 작은 알약입니다. */}
               <DoneBadge>접수 완료</DoneBadge>
             </Badges>
@@ -118,6 +152,14 @@ const Thumb = styled.img`
   height: 93px;
   border-radius: 8px;
   object-fit: cover;
+`;
+
+const ThumbPlaceholder = styled.div`
+  flex-shrink: 0;
+  width: 118px;
+  height: 93px;
+  border-radius: 8px;
+  background-color: #d9d9d9;
 `;
 
 const SummaryBody = styled.div`

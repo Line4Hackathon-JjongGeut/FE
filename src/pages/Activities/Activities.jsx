@@ -10,8 +10,9 @@ import pawFilledIcon from "../../assets/icons/activities/paw-filled.svg";
 
 import { getMyApplications } from "../../api/volunteer.js";
 import { getActivityCalendar } from "../../api/search.js";
-import { getBookmarkedPostings, getBookmarkedShelters, getParticipationHistory, setSavedFavorite } from "../../api/activities.js";
+import { getBookmarkedPostings, getParticipationHistory, setSavedFavorite } from "../../api/activities.js";
 import { getPostingDetail } from "../../api/postings.js";
+import { formatFosterPeriodLabel, listFosterPeriods } from "../../utils/fosterPeriods.js";
 
 const TABS = [
   { id: "calendar", label: "캘린더" },
@@ -19,18 +20,18 @@ const TABS = [
   { id: "saved", label: "저장" },
 ];
 
-const HISTORY_FILTERS = ["전체", "승인 대기", "참여 예정", "참여 완료", "즐겨찾기"];
-const SAVED_FILTERS = ["전체", "봉사", "후원", "임시보호", "즐겨찾기"];
+const HISTORY_FILTERS = ["전체", "승인 대기", "참여 예정", "참여 완료"];
+const SAVED_FILTERS = ["전체", "봉사", "후원", "임시보호"];
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const FILTER_COLORS = {
   전체: "#382f2f",
   봉사: "#3e7556",
   후원: "#c47b3b",
   임시보호: "#f2a60c",
-  즐겨찾기: "#c4513b",
 };
 const POSTING_CATEGORY = {
   VOLUNTEER: "봉사",
+  SPONSOR: "후원",
   DONATION: "후원",
   FOSTER: "임시보호",
 };
@@ -38,6 +39,8 @@ const POSTING_CATEGORY = {
 const BADGE = {
   "승인 대기": { background: "#fcebc4", color: "#6e5110" },
   "참여 예정": { background: "#e3f0e6", color: "#2f5e43" },
+  "참여 중": { background: "#dceaf8", color: "#24527a" },
+  "접수 완료": { background: "#e3f0e6", color: "#2f5e43" },
   "참여 완료": { background: "#e9e9e9", color: "#50545a" },
   "신청 반려": { background: "#f9eae7", color: "#c8807a" },
   "모집 중": { background: "#e3f0e6", color: "#2f5e43" },
@@ -93,7 +96,6 @@ export default function Activities() {
   const [historyItems, setHistoryItems] = useState(null);
   const [savedItems, setSavedItems] = useState(null);
   const [bookmarkedIds, setBookmarkedIds] = useState(null);
-  const [bookmarkedShelterIds, setBookmarkedShelterIds] = useState(null);
   const [bookmarkTick, setBookmarkTick] = useState(0);
   const monthKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
 
@@ -105,7 +107,7 @@ export default function Activities() {
 
     const completed = historyFilter === "참여 완료";
     const status =
-      historyFilter === "전체" || historyFilter === "즐겨찾기" || completed
+      historyFilter === "전체" || completed
         ? undefined
         : STATUS_QUERY[historyFilter];
     const request = completed
@@ -116,10 +118,11 @@ export default function Activities() {
       .then((result) => {
         if (ignore) return;
         const items = result?.isSuccess ? result.data?.items ?? [] : [];
-        setHistoryItems(items.map(completed ? toParticipationCard : toApplicationCard));
+        const cards = items.map(completed ? toParticipationCard : toApplicationCard);
+        setHistoryItems([...fosterHistoryCards(historyFilter), ...cards]);
       })
       .catch(() => {
-        if (!ignore) setHistoryItems([]);
+        if (!ignore) setHistoryItems(fosterHistoryCards(historyFilter));
       });
 
     return () => {
@@ -154,6 +157,13 @@ export default function Activities() {
         if (!byId.has(String(card.id))) byId.set(String(card.id), card);
       });
 
+      /* 임시보호 신청에서 고른 기간은 그 달이 기간 안에 있으면 같은 달 캘린더에 올립니다. */
+      listFosterPeriods().forEach((item) => {
+        if (!overlapsMonth(item.start, item.end, monthKey)) return;
+        const card = toFosterCalendarCard(item);
+        if (!byId.has(String(card.id))) byId.set(String(card.id), card);
+      });
+
       const cards = [...byId.values()];
       const postingIds = [...new Set(cards.map((card) => card.postingId).filter((id) => id != null))];
       const photos = await Promise.all(
@@ -183,26 +193,24 @@ export default function Activities() {
     };
   }, [tab, monthKey]);
 
-  /* 저장 탭은 관심 공고와, 공고가 없는 관심 시설을 함께 보여 줍니다. */
+  /* 저장 탭은 저장한 공고만 보여 줍니다. */
   useEffect(() => {
     let ignore = false;
 
-    Promise.all([
-      getBookmarkedPostings({ page: 0, size: 50 }).catch(() => null),
-      getBookmarkedShelters({ page: 0, size: 50 }).catch(() => null),
-    ]).then(([postingResult, shelterResult]) => {
-      if (ignore) return;
-      const postings = postingResult?.isSuccess ? postingResult.data?.items ?? [] : [];
-      const shelters = shelterResult?.isSuccess ? shelterResult.data?.items ?? [] : [];
-      const postingCards = postings.map(toSavedCard);
-      const covered = new Set(postingCards.map((item) => String(item.shelterId)));
-      const shelterCards = shelters
-        .filter((item) => !covered.has(String(item.shelterId)))
-        .map(toSavedShelterCard);
-      setSavedItems([...postingCards, ...shelterCards]);
-      setBookmarkedIds(new Set(postingCards.map((item) => String(item.postingId))));
-      setBookmarkedShelterIds(new Set(shelters.map((item) => String(item.shelterId))));
-    });
+    getBookmarkedPostings({ page: 0, size: 50 })
+      .then((postingResult) => {
+        if (ignore) return;
+        const postings = postingResult?.isSuccess ? postingResult.data?.items ?? [] : [];
+        const postingCards = postings.map(toSavedCard);
+        setSavedItems(postingCards);
+        setBookmarkedIds(new Set(postingCards.map((item) => String(item.postingId))));
+      })
+      .catch(() => {
+        if (!ignore) {
+          setSavedItems([]);
+          setBookmarkedIds(new Set());
+        }
+      });
 
     return () => {
       ignore = true;
@@ -230,14 +238,10 @@ export default function Activities() {
 
   async function toggleBookmark(item) {
     const postingId = item?.postingId;
-    const shelterId = item?.shelterId;
-    const saved = item?.kind === "shelter"
-      || bookmarkedIds?.has(String(postingId))
-      || bookmarkedShelterIds?.has(String(shelterId));
+    const saved = bookmarkedIds?.has(String(postingId));
 
     try {
       await setSavedFavorite({
-        shelterId,
         postingIds: postingId != null ? [postingId] : [],
         saved: Boolean(saved),
       });
@@ -247,13 +251,10 @@ export default function Activities() {
     }
   }
 
-  const visibleHistory = (historyItems ?? []).filter((item) => {
-    if (historyFilter !== "즐겨찾기") return true;
-    return bookmarkedIds?.has(String(item.postingId)) || bookmarkedShelterIds?.has(String(item.shelterId));
-  });
+  const visibleHistory = historyItems ?? [];
 
   const visibleSaved = (savedItems ?? []).filter((item) => {
-    if (savedFilter === "전체" || savedFilter === "즐겨찾기") return true;
+    if (savedFilter === "전체") return true;
     return item.category === savedFilter;
   });
 
@@ -263,9 +264,7 @@ export default function Activities() {
   const month = cursor.getMonth();
   const selected = parseKey(selectedKey);
 
-  const selectedItems = scheduleItems.filter(
-    (item) => item.activityDate === selectedKey,
-  );
+  const selectedItems = scheduleItems.filter((item) => coversDate(item, selectedKey));
 
   const upcoming = scheduleItems
     .filter((item) => item.activityDate > selectedKey)
@@ -338,9 +337,7 @@ export default function Activities() {
               {week.map((date) => {
                 const key = keyOf(date);
                 const inMonth = date.getMonth() === month;
-                const marked = scheduleItems.some(
-                  (item) => item.activityDate === key,
-                );
+                const marked = scheduleItems.some((item) => coversDate(item, key));
 
                 return (
                   <DayButton
@@ -385,9 +382,9 @@ export default function Activities() {
               key={item.id}
               item={{
                 ...item,
-                favorite: bookmarkedIds?.has(String(item.postingId)) || bookmarkedShelterIds?.has(String(item.shelterId)),
+                favorite: bookmarkedIds?.has(String(item.postingId)),
               }}
-              onOpen={() => openDetail(item.id)}
+              onOpen={() => (item.kind === "foster" ? openPosting(item) : openDetail(item.id))}
               onFavorite={() => toggleBookmark(item)}
             />
           ))}
@@ -408,9 +405,9 @@ export default function Activities() {
                       key={item.id}
                       item={{
                 ...item,
-                favorite: bookmarkedIds?.has(String(item.postingId)) || bookmarkedShelterIds?.has(String(item.shelterId)),
+                favorite: bookmarkedIds?.has(String(item.postingId)),
               }}
-                      onOpen={() => openDetail(item.id)}
+                      onOpen={() => (item.kind === "foster" ? openPosting(item) : openDetail(item.id))}
                       onFavorite={() => toggleBookmark(item)}
                     />
                   ))}
@@ -456,8 +453,7 @@ export default function Activities() {
           <List>
             {(tab === "history" ? visibleHistory : visibleSaved).map((item) => {
               const favorite = tab === "saved"
-                || bookmarkedIds?.has(String(item.postingId))
-                || bookmarkedShelterIds?.has(String(item.shelterId));
+                || bookmarkedIds?.has(String(item.postingId));
               return (
               <HistoryCard
                 key={item.id}
@@ -465,6 +461,10 @@ export default function Activities() {
                 onClick={() => {
                   if (item.kind === "shelter") {
                     navigate(`/shelters/${item.shelterId}`);
+                    return;
+                  }
+                  if (item.kind === "foster") {
+                    openPosting(item);
                     return;
                   }
                   if (tab === "history") openDetail(item.id);
@@ -501,7 +501,7 @@ export default function Activities() {
             })}
 
             {(tab === "history"
-              ? historyItems !== null && (historyFilter !== "즐겨찾기" || bookmarkedIds !== null)
+              ? historyItems !== null
               : savedItems !== null) &&
               (tab === "history" ? visibleHistory : visibleSaved).length === 0 && (
               <Empty>표시할 활동이 없어요.</Empty>
@@ -596,6 +596,51 @@ function toApplicationCard(item) {
   };
 }
 
+/* 임시보호 기간이 오늘보다 뒤면 참여 예정, 지났으면 참여 완료, 오늘을 포함하면 참여 중입니다. */
+function fosterPeriodStatus(start, end) {
+  const today = keyOf(new Date());
+  if (end < today) return "참여 완료";
+  if (start > today) return "참여 예정";
+  return "참여 중";
+}
+
+function toFosterHistoryCard(item) {
+  return {
+    id: `foster-${item.id}`,
+    postingId: item.postingId,
+    status: fosterPeriodStatus(item.start, item.end),
+    title: item.title ?? "",
+    shelter: item.shelterName ?? "",
+    shelterId: item.shelterId,
+    schedule: formatFosterPeriodLabel(item.start, item.end),
+    category: "임시보호",
+    kind: "foster",
+  };
+}
+
+function fosterHistoryCards(filter) {
+  const cards = listFosterPeriods().map(toFosterHistoryCard);
+  if (filter === "전체") return cards;
+  return cards.filter((card) => card.status === filter);
+}
+
+/* 임시보호 신청 기간을 날짜 카드에 맞게 바꿉니다. 시작일부터 종료일까지 점을 찍습니다. */
+function toFosterCalendarCard(item) {
+  return {
+    id: `foster-${item.id}`,
+    postingId: item.postingId,
+    status: "접수 완료",
+    title: item.title ?? "",
+    shelter: item.shelterName ?? "",
+    shelterId: item.shelterId,
+    schedule: formatFosterRange(item.start, item.end),
+    activityDate: item.start,
+    spanEnd: item.end,
+    category: "임시보호",
+    kind: "foster",
+  };
+}
+
 /* 캘린더 응답 한 건을 날짜 카드에 맞게 바꿉니다. */
 function toCalendarCard(item) {
   return {
@@ -624,24 +669,35 @@ function toSavedCard(item) {
   };
 }
 
-/* 공고 없이 저장한 시설을 저장 카드로 바꿉니다. */
-function toSavedShelterCard(item) {
-  const region = [item.region?.sido, item.region?.sigungu].filter(Boolean).join(" ");
-  const count = item.openPostingCount;
-  return {
-    id: `shelter-${item.shelterId}`,
-    shelterId: item.shelterId,
-    kind: "shelter",
-    category: "",
-    status: count > 0 ? "모집 중" : "",
-    title: item.name ?? "",
-    shelter: region,
-    schedule: count != null ? `모집 중 공고 ${count}건` : "",
-  };
-}
-
 function showsOnCalendar(status) {
   return status !== "신청 취소" && status !== "신청 반려" && status !== "불참";
+}
+
+/* 하루 일정은 그 날짜만, 임시보호 기간은 시작일부터 종료일까지 해당합니다. */
+function coversDate(item, key) {
+  if (item.spanEnd) return item.activityDate <= key && key <= item.spanEnd;
+  return item.activityDate === key;
+}
+
+function overlapsMonth(start, end, monthKey) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const last = new Date(year, month, 0).getDate();
+  const monthStart = `${monthKey}-01`;
+  const monthEnd = `${monthKey}-${String(last).padStart(2, "0")}`;
+  return start <= monthEnd && end >= monthStart;
+}
+
+function formatFosterRange(startKey, endKey) {
+  const start = parseKey(startKey);
+  const end = parseKey(endKey);
+  const withYear = start.getFullYear() !== end.getFullYear();
+  const dayText = (date) => {
+    const year = withYear ? `${date.getFullYear()}/` : "";
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}${date.getMonth() + 1}/${day}(${WEEKDAYS[date.getDay()]})`;
+  };
+  if (startKey === endKey) return dayText(start);
+  return `${dayText(start)} ~ ${dayText(end)}`;
 }
 
 function savedStatus(status) {
