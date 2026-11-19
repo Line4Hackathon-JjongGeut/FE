@@ -58,8 +58,8 @@ async function runFavorite(request, saved) {
 }
 
 /*
-  발바닥 한 번으로 보호시설과 공고를 같이 저장하거나 해제합니다.
-  시설은 지도 즐겨찾기에, 공고는 활동 저장에 보이게 하려는 것입니다.
+  발바닥으로 보호시설 또는 공고를 저장하거나 해제합니다.
+  시설은 보호시설 상세에서만, 공고는 그 공고 카드에서만 저장합니다.
 */
 export function setSavedFavorite({ shelterId, postingIds = [], saved }) {
   const jobs = [];
