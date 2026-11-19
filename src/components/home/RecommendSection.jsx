@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import SectionHeader from "./SectionHeader.jsx";
@@ -13,6 +13,7 @@ import sparkleIcon from "../../assets/icons/home/icon-sparkle.svg";
 
 const CARDS_PER_PAGE = 2;
 const HOME_RECOMMEND_COUNT = 6;
+const AUTO_SLIDE_DELAY = 3000;
 
 /* 홈 "나를 위한 봉사 추천" 섹션. */
 export default function RecommendSection() {
@@ -26,6 +27,20 @@ export default function RecommendSection() {
   const pages = chunk(recommendations.cards, CARDS_PER_PAGE);
   // 지금 보고 있는 페이지의 카드 2장을 노출로 기록
   useRecordImpressions(recommendations.batchId, pages[page] ?? []);
+
+  // 손가락이나 마우스가 카드 위에 있는 동안은 자동으로 넘기지 않음
+  const [isHolding, setIsHolding] = useState(false);
+
+  useEffect(() => {
+    if (pages.length <= 1 || isHolding) return undefined;
+    const timer = setTimeout(() => {
+      const track = trackRef.current;
+      if (!track) return;
+      const next = (page + 1) % pages.length;
+      track.scrollTo({ left: next * track.clientWidth, behavior: "smooth" });
+    }, AUTO_SLIDE_DELAY);
+    return () => clearTimeout(timer);
+  }, [page, pages.length, isHolding]);
 
   function handleScroll() {
     const track = trackRef.current;
@@ -54,7 +69,14 @@ export default function RecommendSection() {
         <RecommendStatus status="empty" />
       ) : (
         <>
-          <Track ref={trackRef} onScroll={handleScroll}>
+          <Track
+            ref={trackRef}
+            onScroll={handleScroll}
+            onTouchStart={() => setIsHolding(true)}
+            onTouchEnd={() => setIsHolding(false)}
+            onMouseEnter={() => setIsHolding(true)}
+            onMouseLeave={() => setIsHolding(false)}
+          >
             {pages.map((cards, index) => (
               <Page key={index}>
                 {cards.map((post) => (

@@ -146,3 +146,13 @@ const Empty = styled.p`
   color: #8a8a8a;
   font-size: 14px;
 `;
+
+const RetryButton = styled.button`
+  border: 0;
+  background: none;
+  color: #2f3833;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+`;
