@@ -3,6 +3,11 @@ import { parseServerTime, formatDay, formatSchedule } from "./dateFormat.js";
 
 const TYPE_FROM_API = { VOLUNTEER: "staff", SPONSOR: "goods" };
 
+export const URGENT_LABELS = {
+  staff: "인력 부족",
+  goods: "물품 부족",
+};
+
 /* 카드 종류별 상세 화면 주소 */
 const DETAIL_PATH = {
   staff: (postingId) => `/shelters/volunteer/${postingId}`,
