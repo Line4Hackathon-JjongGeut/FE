@@ -1,3 +1,5 @@
+import { formatSchedule } from "./dateFormat.js";
+
 /* 추천 API 응답 -> 추천 카드가 쓰는 값 */
 export function formatDistance(km) {
   if (km === null || km === undefined) return null;
@@ -18,7 +20,7 @@ function toRecommendCard(item, batchId) {
   const tags = item.reasonTags ?? [];
   return {
     id: item.recommendationItemId,
-    batchId, 
+    batchId,
     postId: posting.postingId,
     title: posting.title,
     shelter: posting.shelterName,
@@ -26,13 +28,15 @@ function toRecommendCard(item, batchId) {
     tags,
     matchLabel: toMatchLabel(tags),
     distance: formatDistance(posting.distanceKm),
-    schedule: null,
-    thumbnailUrl: null,
+    schedule: formatSchedule(posting.activityStartAt, posting.activityEndAt),
+    thumbnailUrl: posting.thumbnailUrl ?? null,
   };
 }
 
 export function fromRecommendationResponse(data) {
   const batchId = data?.recommendationBatchId ?? null;
-  const cards = (data?.items ?? []).map((item) => toRecommendCard(item, batchId));
+  const cards = (data?.items ?? []).map((item) =>
+    toRecommendCard(item, batchId),
+  );
   return { batchId, cards };
 }
