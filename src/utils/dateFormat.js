@@ -1,6 +1,6 @@
 /* 서버 시간 글자를 화면 날짜로 바꾸는 함수 모음 */
 
-const SERVER_TIME_ZONE = "Z";
+const SERVER_TIME_ZONE = "+09:00";
 
 const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
