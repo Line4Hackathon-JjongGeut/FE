@@ -339,7 +339,12 @@ export default function Apply() {
               <SectionTitle>봉사 경험</SectionTitle>
               <ExperienceBox>
                 {editingExperience ? (
-                  <ExperienceInput value={experience} onChange={(event) => setExperience(event.target.value)} autoFocus />
+                  <ExperienceInput
+                    value={experience}
+                    rows={1}
+                    onChange={(event) => setExperience(event.target.value)}
+                    autoFocus
+                  />
                 ) : (
                   <ExperienceText>{experience}</ExperienceText>
                 )}
@@ -807,26 +812,38 @@ const ProfileLink = styled.button`
 
 const ExperienceBox = styled.div`
   display: flex;
-  align-items: center;
-  height: 43px;
-  padding: 0 18px;
+  align-items: flex-start;
+  box-sizing: border-box;
+  min-height: 43px;
+  height: auto;
+  padding: 10px 18px;
   border: 1px solid #908b8a;
   border-radius: 10px;
 `;
 
 const ExperienceText = styled.p`
   margin: 0;
+  min-width: 0;
   color: #2f3833;
   font-size: 15px;
   font-weight: 500;
+  line-height: 22px;
+  word-break: break-word;
 `;
 
-const ExperienceInput = styled.input`
+const ExperienceInput = styled.textarea`
   width: 100%;
+  min-height: 22px;
   border: 0;
+  padding: 0;
+  resize: none;
+  overflow: hidden;
   color: #2f3833;
+  font-family: inherit;
   font-size: 15px;
   font-weight: 500;
+  line-height: 22px;
+  field-sizing: content;
   outline: none;
 `;
 

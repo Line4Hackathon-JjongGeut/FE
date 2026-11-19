@@ -214,14 +214,27 @@ export default function FosterDetail() {
   );
 }
 
+const ANIMAL_LABELS = { DOG: "강아지", CAT: "고양이" };
+const GENDER_LABELS = { MALE: "수컷", FEMALE: "암컷", UNKNOWN: "미상" };
+const CONTACT_LABELS = { APP: "앱 문의", EXTERNAL: "외부 문의" };
+
+function labelOf(map, value) {
+  if (!value) return "";
+  return map[value] ?? value;
+}
+
 function toFosterView(data) {
-  const animal = [{ label: "동물", value: data.animalType || "" }].filter((row) => row.value);
+  const foster = data.foster ?? {};
+  const animal = [
+    { label: "이름", value: foster.petName || "" },
+    { label: "동물", value: labelOf(ANIMAL_LABELS, data.animalType) },
+    { label: "나이", value: foster.petAgeText || "" },
+    { label: "성별", value: labelOf(GENDER_LABELS, foster.petGender) },
+    { label: "특징", value: foster.petCharacteristics || "" },
+  ].filter((row) => row.value);
   const care = [
-    {
-      label: "문의 방법",
-      value: data.foster?.contactMethod === "APP" ? "앱 문의" : data.foster?.contactMethod || "",
-    },
-    { label: "외부 링크", value: data.foster?.externalUrl || "" },
+    { label: "문의 방법", value: labelOf(CONTACT_LABELS, foster.contactMethod) },
+    { label: "외부 링크", value: foster.externalUrl || "" },
   ].filter((row) => row.value);
   const view = {
     id: data.postingId,
@@ -456,10 +469,13 @@ const InfoLabel = styled.span`
 `;
 
 const InfoValue = styled.span`
+  flex: 1;
+  min-width: 0;
   color: #382f2f;
   font-size: 13px;
   font-weight: 500;
   line-height: 17px;
+  word-break: break-word;
 `;
 
 const Body = styled.p`
