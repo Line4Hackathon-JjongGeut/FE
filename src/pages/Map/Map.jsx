@@ -11,7 +11,7 @@ import pawIcon from "../../assets/icons/map/paw-alt.svg";
 import pawFilledIcon from "../../assets/icons/map/paw-filled.svg";
 import animalInfoIcon from "../../assets/icons/map/animal-info.svg";
 import { FILTERS, FILTER_COLORS } from "../../dummyData/map/mapDummy.js";
-import { getPostingDetail } from "../../api/postings.js";
+import { getPostingDetail, getPostings } from "../../api/postings.js";
 import { getShelterPostings, getShelters } from "../../api/shelters.js";
 import { getBookmarkedPostings, getBookmarkedShelters, setSavedFavorite } from "../../api/activities.js";
 import { loadKakaoMap } from "../../lib/kakaoMap.js";
@@ -24,6 +24,82 @@ const POSTING_CATEGORY = {
   DONATION: "후원",
   FOSTER: "임시보호",
 };
+
+const PIN_TYPE_QUERY = {
+  봉사: "VOLUNTEER",
+  후원: "SPONSOR",
+  임시보호: "FOSTER",
+};
+
+/* 지도에 올라간 마커를 지우고, 넘긴 시설 좌표만 다시 찍습니다. move가 아니면 보고 있는 위치는 그대로 둡니다. */
+function drawMarkers(map, kakao, markersRef, selectRef, points, { move = true } = {}) {
+  markersRef.current.forEach((marker) => marker.setMap(null));
+
+  if (!points.length) {
+    markersRef.current = [];
+    if (move) {
+      map.setCenter(new kakao.maps.LatLng(SEOUL.lat, SEOUL.lng));
+      map.setLevel(8);
+    }
+  } else {
+    const bounds = new kakao.maps.LatLngBounds();
+    markersRef.current = points.map((point) => {
+      const position = new kakao.maps.LatLng(point.lat, point.lng);
+      bounds.extend(position);
+      const marker = new kakao.maps.Marker({ position });
+      marker.setMap(map);
+      kakao.maps.event.addListener(marker, "click", () => selectRef.current(point.shelterId));
+      return marker;
+    });
+
+    if (move) {
+      if (points.length === 1) {
+        map.setCenter(new kakao.maps.LatLng(points[0].lat, points[0].lng));
+        map.setLevel(5);
+      } else {
+        map.setBounds(bounds);
+      }
+    }
+  }
+
+  if (!move) return;
+  map.relayout();
+  requestAnimationFrame(() => map.relayout());
+}
+
+/* 모집공고 검색 한 건을 지도 카드 모양으로 바꿉니다. */
+function postingToPlace(item) {
+  const shelter = item.shelter ?? {};
+  return {
+    id: item.postingId,
+    shelterId: shelter.shelterId,
+    title: item.title ?? "",
+    postingId: item.postingId,
+    category: POSTING_CATEGORY[item.postingType] ?? item.postingType ?? "",
+    shelter: shelter.name ?? "",
+    address: [shelter.region?.sido, shelter.region?.sigungu].filter(Boolean).join(" "),
+    time: formatStart(item.activityStartAt),
+    bookmarked: Boolean(item.bookmarked),
+    photos: cardPhotos(shelter, item),
+  };
+}
+
+/* 공고 검색 결과에서 시설마다 핀 하나씩만 남깁니다. */
+function pointsFromPostings(items) {
+  const seen = new Set();
+  const points = [];
+  items.forEach((item) => {
+    const shelter = item.shelter ?? {};
+    const shelterId = shelter.shelterId;
+    const lat = Number(shelter.latitude);
+    const lng = Number(shelter.longitude);
+    if (shelterId == null || seen.has(String(shelterId))) return;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    seen.add(String(shelterId));
+    points.push({ shelterId, lat, lng });
+  });
+  return points;
+}
 
 /* 공고 사진이 있으면 그걸 쓰고, 없으면 시설 썸네일을 씁니다. */
 function cardPhotos(shelter, posting) {
@@ -110,8 +186,10 @@ export default function Map() {
   const closeRef = useRef(() => {});
   const selectRef = useRef(() => {});
   const markerPickRef = useRef(false);
+  const locationOverlayRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapShown, setMapShown] = useState(false);
+  const [filterPostings, setFilterPostings] = useState(null);
 
   /* 시트가 열려 있는 동안 하단 메뉴를 숨기고, 페이지를 떠나면 다시 보여 줍니다. */
   useEffect(() => {
@@ -151,13 +229,12 @@ export default function Map() {
 
   const sheltersLoaded = shelters !== null;
 
-  /* 보호시설 좌표가 있으면 마커를 찍고, 없으면 서울을 중심으로 둡니다. 위치가 정해진 뒤에만 지도를 보여 줍니다. */
+  /* 전체이거나 필터가 없으면 시설 좌표로 핀을 찍습니다. 위치가 정해진 뒤에만 지도를 보여 줍니다. */
   useEffect(() => {
     if (!mapReady || !mapRef.current || !window.kakao?.maps || !sheltersLoaded) return undefined;
+    if (filter && filter !== "전체") return undefined;
     const kakao = window.kakao;
     const map = mapRef.current;
-    markersRef.current.forEach((marker) => marker.setMap(null));
-
     const points = markerKey
       .split("|")
       .filter(Boolean)
@@ -168,34 +245,67 @@ export default function Map() {
       })
       .filter((point) => point.shelterId && Number.isFinite(point.lat) && Number.isFinite(point.lng));
 
-    if (!points.length) {
-      markersRef.current = [];
-      map.setCenter(new kakao.maps.LatLng(SEOUL.lat, SEOUL.lng));
-      map.setLevel(8);
-    } else {
-      const bounds = new kakao.maps.LatLngBounds();
-      markersRef.current = points.map((point) => {
-        const position = new kakao.maps.LatLng(point.lat, point.lng);
-        bounds.extend(position);
-        const marker = new kakao.maps.Marker({ position });
-        marker.setMap(map);
-        kakao.maps.event.addListener(marker, "click", () => selectRef.current(point.shelterId));
-        return marker;
-      });
-
-      if (points.length === 1) {
-        map.setCenter(new kakao.maps.LatLng(points[0].lat, points[0].lng));
-        map.setLevel(5);
-      } else {
-        map.setBounds(bounds);
-      }
-    }
-
-    map.relayout();
+    drawMarkers(map, kakao, markersRef, selectRef, points);
     setMapShown(true);
-    requestAnimationFrame(() => map.relayout());
     return undefined;
-  }, [mapReady, markerKey, sheltersLoaded]);
+  }, [mapReady, markerKey, sheltersLoaded, filter]);
+
+  /* 봉사, 후원, 임시보호는 종류로, 저장은 bookmarked로 모집공고 검색 결과를 거릅니다. */
+  useEffect(() => {
+    const postingType = PIN_TYPE_QUERY[filter];
+    const savedOnly = filter === "즐겨찾기";
+    if (!postingType && !savedOnly) {
+      setFilterPostings(null);
+      return undefined;
+    }
+    let ignore = false;
+    setFilterPostings(null);
+
+    (async () => {
+      const items = [];
+      let page = 0;
+      let hasNext = true;
+      try {
+        while (hasNext && page < 20) {
+          const result = await getPostings({
+            postingType,
+            page,
+            size: 50,
+          });
+          if (ignore || !result?.isSuccess) break;
+          items.push(...(result.data?.items ?? []));
+          hasNext = Boolean(result.data?.hasNext);
+          page += 1;
+        }
+        if (!ignore) {
+          setFilterPostings(savedOnly ? items.filter((item) => item.bookmarked) : items);
+        }
+      } catch {
+        if (!ignore) setFilterPostings([]);
+      }
+    })();
+
+    return () => {
+      ignore = true;
+    };
+  }, [filter]);
+
+  /* 필터 핀은 검색 결과의 시설 좌표만 다시 찍고, 지도가 보고 있는 위치는 그대로 둡니다. */
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !window.kakao?.maps) return undefined;
+    if (!filter || filter === "전체" || filterPostings == null) return undefined;
+
+    drawMarkers(
+      mapRef.current,
+      window.kakao,
+      markersRef,
+      selectRef,
+      pointsFromPostings(filterPostings),
+      { move: false },
+    );
+    setMapShown(true);
+    return undefined;
+  }, [mapReady, filter, filterPostings]);
 
   /* 보호시설 목록을 가져옵니다. 응답 전에는 카드를 보여 주지 않습니다. */
   useEffect(() => {
@@ -441,11 +551,12 @@ export default function Map() {
     ...savedShelters.map((item) => {
       const shelter = (shelters ?? []).find((place) => String(place.shelterId) === String(item.shelterId));
       const region = [item.region?.sido, item.region?.sigungu].filter(Boolean).join(" ");
+      const name = item.name ?? shelter?.name ?? "";
       return {
         id: `shelter-${item.shelterId}`,
         shelterId: item.shelterId,
-        title: "",
-        shelter: item.name ?? shelter?.name ?? "",
+        title: name,
+        shelter: "",
         address: shelter?.address ?? item.address ?? region,
         bookmarked: true,
         photos: cardPhotos(shelter ?? item, null),
@@ -478,6 +589,40 @@ export default function Map() {
       return place.category === filter;
     });
 
+  /* 브라우저 위치 권한으로 현재 좌표를 받아 지도 가운데로 옮깁니다. */
+  function moveToCurrentLocation() {
+    const map = mapRef.current;
+    if (!map || !window.kakao?.maps || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const kakao = window.kakao;
+        const here = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
+        map.relayout();
+        map.setLevel(4);
+        map.setCenter(here);
+        locationOverlayRef.current?.setMap(null);
+        const dot = document.createElement("div");
+        dot.style.width = "14px";
+        dot.style.height = "14px";
+        dot.style.borderRadius = "50%";
+        dot.style.backgroundColor = "#2f80ed";
+        dot.style.border = "2px solid #ffffff";
+        dot.style.boxShadow = "0 0 0 6px rgba(47, 128, 237, 0.25)";
+        const overlay = new kakao.maps.CustomOverlay({
+          position: here,
+          content: dot,
+          xAnchor: 0.5,
+          yAnchor: 0.5,
+          zIndex: 4,
+        });
+        overlay.setMap(map);
+        locationOverlayRef.current = overlay;
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  }
+
   /* 손잡이를 위로 밀면 열리고, 아래로 밀면 닫힙니다. 거의 움직이지 않고 누르면 열림과 닫힘이 바뀝니다. */
   function handleDragStart(event) {
     dragStartY.current = event.clientY;
@@ -491,13 +636,35 @@ export default function Map() {
     else setExpanded((open) => !open);
   }
 
-  const selectedPlace = selectedShelterId == null
+  const filterNarrows = Boolean(filter) && filter !== "전체";
+  const waitingForPinCards = selectedShelterId != null && filterNarrows && filterPostings == null;
+  /* 필터를 고른 뒤 핀을 누르면, 그 시설이면서 그 필터인 공고만 카드로 씁니다. */
+  const pinCards = selectedShelterId != null && filterNarrows && filterPostings
+    ? filterPostings
+      .filter((item) => String(item.shelter?.shelterId) === String(selectedShelterId))
+      .map(postingToPlace)
+    : null;
+  const selectedPlace = waitingForPinCards || selectedShelterId == null
     ? null
-    : shelterPlaces.find((place) => String(place.shelterId) === String(selectedShelterId)) ?? null;
-  const showingPreview = Boolean(selectedPlace) || (Boolean(filter) && places.length > 0);
-  const emptyPreview = Boolean(filter) && places.length === 0 && !selectedPlace;
+    : pinCards?.[0]
+      ?? shelterPlaces.find((place) => String(place.shelterId) === String(selectedShelterId))
+      ?? null;
+  const showingPreview = (pinCards?.length > 0)
+    || Boolean(selectedPlace)
+    || (Boolean(filter) && places.length > 0);
+  const emptyPreview = filterNarrows && selectedShelterId != null
+    ? filterPostings != null && (pinCards?.length ?? 0) === 0
+    : Boolean(filter) && places.length === 0 && !selectedPlace;
   const oneCard = !expanded && (showingPreview || emptyPreview);
-  const visiblePlaces = expanded ? places : selectedPlace ? [selectedPlace] : places.slice(0, 1);
+  const visiblePlaces = waitingForPinCards
+    ? []
+    : pinCards != null
+    ? pinCards
+    : expanded
+      ? places
+      : selectedPlace
+        ? [selectedPlace]
+        : places.slice(0, 1);
 
   /* 카드 한 장이 새로 열릴 때마다 애니메이션을 껐다가 다시 켜서 아래서 위로 올라오게 합니다. */
   useLayoutEffect(() => {
@@ -571,18 +738,23 @@ export default function Map() {
               $color={FILTER_COLORS[name]}
               onClick={() => selectFilter(name)}
             >
-              {name}
+              {name === "즐겨찾기" ? "저장" : name}
             </FilterChip>
           ))}
         </Filters>
       </Top>
 
-      {/* 필터나 핀 카드가 없을 때만 전체보기 버튼이 보입니다. */}
+      {/* 필터나 핀 카드가 없을 때만 전체보기와 현재 위치 버튼이 보입니다. */}
       {!expanded && !showingPreview && (
-        <ViewAll type="button" onClick={() => setExpanded(true)}>
-          <Icon src={viewAllIcon} alt="" />
-          전체보기
-        </ViewAll>
+        <MapActions>
+          <ViewAll type="button" onClick={() => setExpanded(true)}>
+            <Icon src={viewAllIcon} alt="" />
+            전체보기
+          </ViewAll>
+          <LocateButton type="button" aria-label="현재 위치로 찾기" onClick={moveToCurrentLocation}>
+            <LocateMark />
+          </LocateButton>
+        </MapActions>
       )}
 
       {/* 필터를 고르면 카드 하나 높이만 올라오고, 시트를 올리면 목록 전체가 보입니다. */}
@@ -601,10 +773,10 @@ export default function Map() {
           <Grip />
         </Handle>
         <List $preview={showingPreview && !expanded}>
-          {shelters === null || (filter === "즐겨찾기" && !bookmarksLoaded) ? null : visiblePlaces.length === 0 ? (
+          {shelters === null || waitingForPinCards || (filter === "즐겨찾기" && !bookmarksLoaded) ? null : visiblePlaces.length === 0 ? (
             <Empty>
               {filter === "즐겨찾기"
-                ? "즐겨찾기한 활동이 없습니다."
+                ? "저장한 활동이 없습니다."
                 : "조건에 맞는 활동이 없습니다."}
             </Empty>
           ) : (
@@ -642,15 +814,17 @@ function PlaceCard({ place, favorite, onToggleFavorite, onOpenPost, onOpenShelte
               <Icon src={checkIcon} alt="" />
               쫑긋 인증
             </Badge>
-            <ShelterButton
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenShelter();
-              }}
-            >
-              {place.shelter}
-            </ShelterButton>
+            {place.shelter ? (
+              <ShelterButton
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenShelter();
+                }}
+              >
+                {place.shelter} &gt;
+              </ShelterButton>
+            ) : null}
           </BadgeRow>
           <Title>{place.title}</Title>
         </div>
@@ -677,7 +851,7 @@ function PlaceCard({ place, favorite, onToggleFavorite, onOpenPost, onOpenShelte
         <>
           <Meta>
             <Icon src={pinIcon} alt="" />
-            {place.address}
+            {place.shelter ? place.address : <PlaceLink>{place.address} &gt;</PlaceLink>}
           </Meta>
           {place.time && (
             <Meta>
@@ -760,11 +934,15 @@ const FilterChip = styled.button`
   cursor: pointer;
 `;
 
-const ViewAll = styled.button`
+const MapActions = styled.div`
   position: absolute;
   bottom: 52px;
   left: 50%;
   z-index: 2;
+  transform: translateX(-50%);
+`;
+
+const ViewAll = styled.button`
   display: flex;
   align-items: center;
   gap: 6px;
@@ -776,8 +954,54 @@ const ViewAll = styled.button`
   color: #382f2f;
   font-size: 13px;
   font-weight: 700;
-  transform: translateX(-50%);
   cursor: pointer;
+`;
+
+/* 전체보기 바로 오른쪽의 흰 원입니다. */
+const LocateButton = styled.button`
+  position: absolute;
+  top: 0;
+  left: calc(100% + 8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background-color: #ffffff;
+  cursor: pointer;
+`;
+
+const LocateMark = styled.span`
+  width: 16px;
+  height: 16px;
+  border: 2px solid #382f2f;
+  border-radius: 50%;
+  position: relative;
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    background-color: #382f2f;
+  }
+
+  &::before {
+    top: 50%;
+    left: -4px;
+    width: 20px;
+    height: 2px;
+    transform: translateY(-50%);
+  }
+
+  &::after {
+    left: 50%;
+    top: -4px;
+    width: 2px;
+    height: 20px;
+    transform: translateX(-50%);
+  }
 `;
 
 const Sheet = styled.section`
@@ -900,7 +1124,16 @@ const ShelterButton = styled.button`
   font-size: 13px;
   font-weight: 500;
   text-align: left;
+  text-decoration: underline;
+  text-decoration-thickness: from-font;
+  text-underline-position: from-font;
   cursor: pointer;
+`;
+
+const PlaceLink = styled.span`
+  text-decoration: underline;
+  text-decoration-thickness: from-font;
+  text-underline-position: from-font;
 `;
 
 const Title = styled.h2`

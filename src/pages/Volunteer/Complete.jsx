@@ -11,9 +11,8 @@ export default function Complete() {
     <Screen>
       <Center>
         <Mascot>
-          <Cat src={catIcon} alt="" />
-          {/* 고양이가 앉아 있는 연초록 동그라미와 체크입니다. */}
           <Check src={checkIcon} alt="" />
+          <Cat src={catIcon} alt="" />
         </Mascot>
         <Title>접수가 신청됐어요!</Title>
         <Text>
@@ -52,21 +51,27 @@ const Center = styled.div`
   text-align: center;
 `;
 
+/* 연초록 체크 위에 고양이가 앉도록, 피그마와 같은 자리에 겹칩니다. */
 const Mascot = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  position: relative;
+  width: 57px;
+  height: 112px;
 `;
 
 const Cat = styled.img`
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 57px;
   height: 72px;
 `;
 
 const Check = styled.img`
+  position: absolute;
+  top: 61px;
+  left: 3px;
   width: 51px;
   height: 51px;
-  margin-top: -22px;
 `;
 
 const Title = styled.h1`

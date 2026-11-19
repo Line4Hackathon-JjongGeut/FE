@@ -326,10 +326,11 @@ export default function DonationDetail() {
 
 function toDonationView(data) {
   const region = [data.shelter?.region?.sido, data.shelter?.region?.sigungu].filter(Boolean).join(" ");
+  const sponsor = data.sponsor ?? {};
   const info = [
-    { label: "후원 목적", value: data.sponsor?.donationPurpose || "" },
-    { label: "모집 마감", value: formatDay(data.recruitEndAt) },
-    { label: "동물", value: data.animalType || "" },
+    { label: "모집 기간", value: formatPeriod(data.recruitEndAt) },
+    { label: "후원 목적", value: sponsor.donationPurpose || "" },
+    { label: "필요 물품", value: formatNeededItems(sponsor.neededItems) },
   ].filter((row) => row.value);
   const view = {
     id: data.postingId,
@@ -339,7 +340,7 @@ function toDonationView(data) {
     shelterId: data.shelter?.shelterId,
     shelterName: data.shelter?.name ?? "",
     detail: data.description ?? "",
-    note: data.sponsor?.donationLinkAvailable
+    note: sponsor.donationLinkAvailable
       ? "후원 링크를 통해 바로 후원할 수 있어요."
       : "시설에 문의한 뒤 후원해 주세요.",
     address: data.shelter?.address || region,
@@ -353,6 +354,12 @@ function toDonationView(data) {
   return view;
 }
 
+/* 필요 물품 목록을 피그마처럼 쉼표로 이어 한 줄에 보여 줍니다. */
+function formatNeededItems(items) {
+  if (!Array.isArray(items)) return "";
+  return items.map((item) => String(item ?? "").trim()).filter(Boolean).join(", ");
+}
+
 function formatPosted(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value ?? "";
@@ -363,10 +370,13 @@ function formatPosted(value) {
   return `${date.getFullYear()}-${month}-${day} ${hours}:${minutes}`;
 }
 
-function formatDay(value) {
+function formatPeriod(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`;
+  const week = ["일", "월", "화", "수", "목", "금", "토"][date.getDay()];
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}.${month}.${day} (${week})`;
 }
 
 /* 페이지 전체. 아래 고정 막대에 글이 가리지 않도록 밑을 비워 둡니다. */
@@ -560,10 +570,13 @@ const InfoLabel = styled.span`
 `;
 
 const InfoValue = styled.span`
+  flex: 1;
+  min-width: 0;
   color: #382f2f;
   font-size: 13px;
   font-weight: 500;
   line-height: 17px;
+  word-break: break-word;
 `;
 
 const Body = styled.p`

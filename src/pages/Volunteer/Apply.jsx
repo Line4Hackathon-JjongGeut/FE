@@ -41,6 +41,7 @@ export default function Apply() {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [experience, setExperience] = useState("");
   const [experienceId, setExperienceId] = useState(null);
   const [editingExperience, setEditingExperience] = useState(false);
@@ -156,6 +157,7 @@ export default function Apply() {
       if (!result?.isSuccess) return;
       setName(result.data?.name ?? "");
       setPhone(result.data?.phone ?? "");
+      setPhoneError("");
     } catch {
       /* 계정을 못 가져오면 입력칸은 그대로 둡니다. */
     }
@@ -309,7 +311,9 @@ export default function Apply() {
             </Section>
 
             <Section>
-              <SectionTitle>신청자 정보</SectionTitle>
+              <SectionTitle>
+                신청자 정보<Required>*</Required>
+              </SectionTitle>
               <Field
                 value={name}
                 placeholder="이름을 입력해 주세요."
@@ -318,8 +322,12 @@ export default function Apply() {
               <Field
                 value={phone}
                 placeholder="연락처를 입력해 주세요."
-                onChange={(event) => setPhone(event.target.value)}
+                onChange={(event) => {
+                  setPhone(event.target.value);
+                  setPhoneError("");
+                }}
               />
+              {phoneError ? <PhoneError>{phoneError}</PhoneError> : null}
               <ProfileLink type="button" onClick={fillSavedProfile}>
                 가입 시 입력한 정보 가져오기
               </ProfileLink>
@@ -447,8 +455,20 @@ export default function Apply() {
         {step === 3 && submitError && <SubmitError>{submitError}</SubmitError>}
         <NextButton
           type="button"
-          disabled={submitting || (step === 3 && !allAgreed)}
-          onClick={() => (step === 3 ? finish() : setStep(step + 1))}
+          disabled={
+            submitting
+            || (step === 1 && (!name.trim() || !phone.trim()))
+            || (step === 3 && !allAgreed)
+          }
+          onClick={() => {
+            if (step === 1 && (!name.trim() || !phone.trim())) return;
+            if (step === 1 && phone.replace(/\D/g, "").length !== 11) {
+              setPhoneError("연락처 정보를 확인해 주세요!");
+              return;
+            }
+            if (step === 3) finish();
+            else setStep(step + 1);
+          }}
         >
           {step === 3 ? "접수 신청 완료하기" : "다음"}
         </NextButton>
@@ -796,6 +816,14 @@ const Field = styled.input`
     font-size: 13px;
     font-weight: 500;
   }
+`;
+
+const PhoneError = styled.p`
+  margin: 0;
+  color: #c4513b;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
 `;
 
 const ProfileLink = styled.button`

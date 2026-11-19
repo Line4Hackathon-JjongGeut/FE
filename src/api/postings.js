@@ -27,6 +27,7 @@ export function getPostings(params = {}) {
 /*
   모집공고 상세 조회.
   유형별 상세 정보, 시설 정보, 모집 상태와 참여 조건을 가져옵니다.
+  후원 공고의 필요 물품은 sponsor.neededItems에 있습니다.
   좌표를 보내면 거리도 함께 옵니다.
 */
 export function getPostingDetail(postingId, params = {}) {

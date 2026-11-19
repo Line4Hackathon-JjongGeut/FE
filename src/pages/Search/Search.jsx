@@ -17,6 +17,9 @@ import { FILTERS, FILTER_COLORS } from "../../dummyData/map/mapDummy.js";
 /* Enter로 검색한 단어만 기억합니다. 화면을 나갔다 들어와도 유지됩니다. */
 let searchedTerms = [];
 
+/* 통합 검색 화면의 추천 검색어입니다. 검색어 추천 API는 없습니다. */
+const RECOMMENDED_KEYWORDS = ["산책 봉사", "돌봄", "후원", "놀이"];
+
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 /* 화면 필터를 모집공고 검색의 postingType으로 바꿉니다. */
@@ -211,7 +214,7 @@ export default function Search() {
         <BackButton type="button" aria-label="뒤로 가기" onClick={() => navigate(-1)}>
           ←
         </BackButton>
-        <Title>{showingSaved ? activeSaved.name || "검색 결과" : keyword ? "검색 결과" : "통합 검색"}</Title>
+        <Title>통합 검색</Title>
       </Header>
 
       <Body>
@@ -271,6 +274,26 @@ export default function Search() {
               </>
             )}
 
+            <SectionTitle>추천 검색어</SectionTitle>
+            <KeywordList>
+              {RECOMMENDED_KEYWORDS.map((text) => (
+                <KeywordItem
+                  key={text}
+                  type="button"
+                  onClick={() => {
+                    remember(text);
+                    searchFor(text);
+                  }}
+                >
+                  <KeywordMain>
+                    <RecommendIcon src={recommendIcon} alt="" />
+                    <KeywordText>{text}</KeywordText>
+                  </KeywordMain>
+                  <Chevron src={chevronIcon} alt="" />
+                </KeywordItem>
+              ))}
+            </KeywordList>
+
             {savedSearches?.length > 0 && (
               <>
                 <SectionTitle>저장한 검색 조건</SectionTitle>
@@ -304,7 +327,7 @@ export default function Search() {
                     setFilter(name);
                   }}
                 >
-                  {name}
+                  {name === "즐겨찾기" ? "저장" : name}
                 </FilterChip>
               ))}
             </Filters>
@@ -528,6 +551,38 @@ const Divider = styled.div`
   height: 1px;
   margin: 18px 0 0;
   background-color: #ececec;
+`;
+
+const KeywordList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 19px;
+  margin-top: 20px;
+`;
+
+const KeywordItem = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 0 15px;
+  border: 0;
+  border-bottom: 1px solid #ececec;
+  background: transparent;
+  cursor: pointer;
+`;
+
+const KeywordMain = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+`;
+
+const KeywordText = styled.span`
+  color: #5a5a5a;
+  font-size: 15px;
+  font-weight: 500;
 `;
 
 const RecommendList = styled.div`
