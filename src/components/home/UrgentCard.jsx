@@ -10,11 +10,17 @@ export default function UrgentCard({ post, onClick }) {
         <Shelter>
           {post.shelter} · {post.region}
         </Shelter>
-        <Volunteers>
-          이번 주 봉사자 <Count>{post.current}</Count> / {post.total}명
-        </Volunteers>
+        {post.type === "staff" ? (
+          <Volunteers>
+            이번 주 봉사자 <Count>{post.current}</Count> / {post.total}명
+          </Volunteers>
+        ) : (
+          <Volunteers>
+            후원 달성 <Percent>{post.percent}%</Percent>
+          </Volunteers>
+        )}
       </Info>
-      <Badge>{URGENT_LABELS[post.type]}</Badge>
+      <Badge $goods={post.type !== "staff"}>{URGENT_LABELS[post.type]}</Badge>
     </Card>
   );
 }
@@ -62,12 +68,17 @@ const Count = styled.strong`
   font-weight: 700;
 `;
 
+const Percent = styled.strong`
+  color: #258314;
+  font-weight: 700;
+`;
+
 const Badge = styled.span`
   flex-shrink: 0;
   margin-top: 7px;
   padding: 6px 10px;
   border-radius: 8px;
-  background-color: #fbe3dc;
+  background-color: ${({ $goods }) => ($goods ? "#d4ebda" : "#fbe3dc")};
   color: #2f3833;
   font-size: 12px;
   font-weight: 600;

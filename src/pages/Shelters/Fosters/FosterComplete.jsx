@@ -49,8 +49,8 @@ export default function FosterComplete() {
       <Center>
         {/* 강아지 그림 아래, 분홍 원 안에 체크가 있는 그림입니다. */}
         <Mascot>
-          <img src={dogIcon} alt="" />
           <Check src={checkIcon} alt="" />
+          <Dog src={dogIcon} alt="" />
         </Mascot>
         <Title>임시보호 지원이 완료되었어요!</Title>
         <Text>
@@ -104,14 +104,23 @@ const Center = styled.div`
   justify-content: center;
 `;
 
+/* 분홍 체크 위에 강아지가 앉도록, 피그마와 같은 자리에 겹칩니다. */
 const Mascot = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  position: relative;
+  width: 68px;
+  height: 126px;
+`;
+
+const Dog = styled.img`
+  position: absolute;
+  top: 0;
+  left: 0;
 `;
 
 const Check = styled.img`
-  margin-top: -22px;
+  position: absolute;
+  top: 70px;
+  left: 12px;
 `;
 
 const Title = styled.h1`
