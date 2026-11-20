@@ -1,11 +1,16 @@
+import { useState } from "react";
 import styled from "styled-components";
 import chevronIcon from "../../assets/icons/search/chevron.svg";
+import profilePhoto from "../../assets/images/mypage/profile-paw.png";
 
-/* 마이페이지 맨 위 프로필 카드 */
-export default function ProfileCard({ name, type, onEdit }) {
+/* 마이페이지 맨 위 프로필 카드. 계정 조회 사진이 없으면 발바닥 사진을 씁니다. */
+export default function ProfileCard({ name, type, image, imageReady, onEdit }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const photo = imageReady && image && !imageFailed ? image : imageReady ? profilePhoto : "";
+
   return (
     <Card>
-      <Avatar aria-hidden />
+      <Avatar alt="" {...(photo ? { src: photo } : {})} onError={() => setImageFailed(true)} />
       <Text>
         <Name>{name ? `${name} 님` : ""}</Name>
         <Type>{type}</Type>
@@ -29,13 +34,14 @@ const Card = styled.div`
   background-color: #deebde;
 `;
 
-const Avatar = styled.span`
+const Avatar = styled.img`
   flex-shrink: 0;
   width: 65px;
   height: 65px;
   border: 4px solid #ffffff;
   border-radius: 50%;
-  background-color: #e5ede3;
+  object-fit: cover;
+  background-color: #ffffff;
 `;
 
 const Text = styled.div`
