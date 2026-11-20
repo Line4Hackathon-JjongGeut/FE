@@ -49,9 +49,11 @@ export default function MyPage() {
   /* 불러오는 중이면 빈칸, 실패하면 기본 문구, 성공하면 닉네임과 회원 유형 */
   let profileName = null;
   let profileType = null;
+  let profileImage = null;
   if (account) {
     profileName = account.nickname ?? account.name;
     profileType = ROLE_LABELS[account.role] ?? "일반 사용자";
+    profileImage = account.profileImageUrl || null;
   } else if (loadFailed) {
     profileName = "회원";
     profileType = "정보를 불러오지 못했어요";
@@ -89,7 +91,13 @@ export default function MyPage() {
       <BackHeader title="마이페이지" />
 
       <Body>
-        <ProfileCard name={profileName} type={profileType} onEdit={showComingSoon} />
+        <ProfileCard
+          name={profileName}
+          type={profileType}
+          image={profileImage}
+          imageReady={account != null || loadFailed}
+          onEdit={showComingSoon}
+        />
 
         <Group>
           <GroupTitle>내 활동</GroupTitle>

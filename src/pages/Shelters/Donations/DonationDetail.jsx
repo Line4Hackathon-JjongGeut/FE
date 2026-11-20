@@ -92,6 +92,10 @@ export default function DonationDetail() {
   const dragRef = useRef(null);
   const photoIndexRef = useRef(0);
   const [frameWidth, setFrameWidth] = useState(0);
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef(null);
+
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   /* 숫자 공고 번호면 모집공고 상세를 가져옵니다. 오기 전에는 임시 공고를 보여 주지 않습니다. */
   useEffect(() => {
@@ -187,6 +191,12 @@ export default function DonationDetail() {
     const index = photoIndexRef.current;
     if (dx <= -48 && index < photos.length - 1) showPhoto(index + 1);
     else if (dx >= 48 && index > 0) showPhoto(index - 1);
+  }
+
+  function showComingSoon() {
+    clearTimeout(toastTimer.current);
+    setToast("준비 중인 기능이에요.");
+    toastTimer.current = setTimeout(() => setToast(""), 2000);
   }
 
   async function copyAddress() {
@@ -318,8 +328,9 @@ export default function DonationDetail() {
           <img src={favorite ? pawFilledIcon : pawIcon} alt="" />
         </PawButton>
         {/* 가로로 긴 둥근 사각형 버튼. 속을 살구색으로 채웁니다. */}
-        <DonateButton type="button">후원하기</DonateButton>
+        <DonateButton type="button" onClick={showComingSoon}>후원하기</DonateButton>
       </ActionBar>
+      {toast && <Toast role="status">{toast}</Toast>}
     </Screen>
   );
 }
@@ -699,6 +710,20 @@ const PawButton = styled.button`
   padding: 0;
   background: transparent;
   cursor: pointer;
+`;
+
+const Toast = styled.p`
+  position: fixed;
+  bottom: 110px;
+  left: 50%;
+  padding: 10px 16px;
+  border-radius: 20px;
+  background-color: rgba(47, 56, 51, 0.9);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transform: translateX(-50%);
 `;
 
 const DonateButton = styled.button`
